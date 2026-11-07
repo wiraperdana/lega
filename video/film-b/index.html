@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <style>
+      /* Film B, "The number that grows": the free-space number fills the frame and grows as each cache leaves.
+         Cache names and sizes are Lega's own (demo mode, window-quick-before.png). */
+      @font-face { font-family: "Host Grotesk"; src: url("assets/fonts/host.woff2") format("woff2"); font-weight: 300 800; }
+      :root { --ground: #e3ebe2; --ink: #121a16; --muted: #56635c; --teal: #0f8072; --red: #e5484d; --orange: #b8681a; --line: rgba(18,26,22,.1); }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--ground); }
+      #root { position: relative; width: 100%; height: 100%; font-family: "Host Grotesk", sans-serif; color: var(--ink); overflow: hidden; }
+      #bg { position: absolute; inset: 0; background: radial-gradient(70% 70% at 50% 45%, #f4f8f3, transparent 70%), var(--ground); }
+      .scene { position: absolute; inset: 0; }
+      .cap { position: absolute; font-weight: 600; letter-spacing: -0.03em; line-height: 1.05; }
+      #num { left: 0; right: 0; top: 330px; text-align: center; font-size: 300px; font-weight: 700; letter-spacing: -0.05em; color: var(--red); font-variant-numeric: tabular-nums; }
+      #free { left: 0; right: 0; top: 670px; text-align: center; font-size: 56px; color: var(--muted); }
+      .tile { position: absolute; width: 400px; display: flex; align-items: center; gap: 18px; padding: 20px 24px; background: #fff; border-radius: 22px; border: 1px solid var(--line); box-shadow: 0 20px 50px rgba(20,40,30,.12); }
+      .tile img { width: 56px; height: 56px; border-radius: 12px; object-fit: contain; }
+      .tile .tile-ico { width: 56px; height: 56px; border-radius: 12px; background: #e7f2ef; color: var(--teal); display: grid; place-items: center; font-size: 30px; font-weight: 700; }
+      .tile b { display: block; font-size: 30px; font-weight: 600; }
+      .tile span { font-size: 28px; color: var(--muted); }
+      #t-comet .note { color: var(--orange); }
+      #mark { position: absolute; left: 0; right: 0; top: 230px; display: flex; justify-content: center; align-items: center; gap: 22px; }
+      #mark img { width: 84px; height: 84px; border-radius: 20px; }
+      #mark b { font-size: 72px; font-weight: 700; letter-spacing: -0.03em; }
+      #pull { left: 0; right: 0; top: 820px; text-align: center; font-size: 52px; }
+      .cursor { position: absolute; left: 0; top: 0; width: 64px; height: 64px; z-index: 50; }
+      .cursor svg { width: 100%; height: 100%; fill: #111; stroke: #fff; stroke-width: 1.5; stroke-linejoin: round; }
+      #claim { left: 0; right: 0; top: 420px; text-align: center; font-size: 128px; }
+      #e-icon { position: absolute; left: 700px; top: 330px; width: 180px; height: 180px; border-radius: 42px; }
+      #e-name { left: 920px; top: 360px; font-size: 140px; }
+      #e-cta { left: 0; right: 0; top: 600px; text-align: center; font-size: 46px; font-weight: 500; }
+      #e-cta span { display: inline-block; background: var(--teal); color: #fff; padding: 22px 44px; border-radius: 999px; margin-right: 24px; }
+      #e-url { left: 0; right: 0; top: 720px; text-align: center; font-size: 40px; color: var(--muted); font-weight: 500; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="19" data-width="1920" data-height="1080">
+      <div id="bg"></div>
+      <div id="s1" class="scene clip" data-start="0" data-duration="13" data-track-index="1">
+        <div id="num" class="cap">6.6 GB</div>
+        <div id="free" class="cap">free on your Mac</div>
+        <div class="tile" id="t-codex" style="left:110px;top:90px"><img src="assets/icons/openai.svg" alt="" /><div><b>Old Codex versions</b><span>7.5 GB</span></div></div>
+        <div class="tile" id="t-chrome" style="left:1430px;top:90px"><img src="assets/icons/chrome.svg" alt="" /><div><b>Cache Google Chrome</b><span>748 MB</span></div></div>
+        <div class="tile" id="t-brew" style="left:110px;top:870px"><img src="assets/icons/homebrew.svg" alt="" /><div><b>Cache Homebrew</b><span>543 MB</span></div></div>
+        <div class="tile" id="t-npm" style="left:560px;top:870px"><img src="assets/icons/npm.svg" alt="" /><div><b>Cache npm</b><span>1.3 GB</span></div></div>
+        <div class="tile" id="t-go" style="left:980px;top:870px"><img src="assets/icons/go.svg" alt="" /><div><b>Go build cache</b><span>547 MB</span></div></div>
+        <div class="tile" id="t-clang" style="left:1430px;top:870px"><div class="tile-ico">{ }</div><div><b>Compiler cache</b><span>812 MB</span></div></div>
+        <div class="tile" id="t-comet" style="left:770px;top:90px"><img src="assets/icons/perplexity.svg" alt="" /><div><b>Cache Comet</b><span class="note" id="comet-note">436 MB</span></div></div>
+        <div id="mark"><img src="assets/icons/lega.png" alt="" /><b>Lega</b></div>
+        <div id="pull" class="cap">Leftover app files pile up.</div>
+      </div>
+      <div id="s2" class="scene clip" data-start="13" data-duration="2.6" data-track-index="2"><h2 id="claim" class="cap">One button, room to breathe.</h2></div>
+      <div id="s3" class="scene clip" data-start="15.6" data-duration="3.4" data-track-index="3">
+        <img id="e-icon" src="assets/icons/lega.png" alt="" />
+        <h2 id="e-name" class="cap">Lega</h2>
+        <div id="e-cta" class="cap"><span>Download for Mac</span>Free</div>
+        <div id="e-url" class="cap">lega.wiraperdana.com</div>
+      </div>
+      <div id="cursor" class="cursor clip" data-start="0" data-duration="19" data-track-index="4"><svg id="cursor-svg" viewBox="0 0 24 24"><path d="M5 3l14 8.2-6.3 1.4L9.6 19z" /></svg></div>
+      <audio id="sfx-click-1" class="clip" src=".media/audio/sfx/sfx_001.mp3" data-start="6.15" data-duration="0.14" data-media-start="0.14" data-volume="0.55" data-track-index="20"></audio>
+      <audio id="sfx-click-2" class="clip" src=".media/audio/sfx/sfx_001.mp3" data-start="6.60" data-duration="0.14" data-media-start="0.14" data-volume="0.55" data-track-index="20"></audio>
+      <audio id="sfx-click-3" class="clip" src=".media/audio/sfx/sfx_001.mp3" data-start="7.20" data-duration="0.14" data-media-start="0.14" data-volume="0.55" data-track-index="20"></audio>
+      <audio id="sfx-click-4" class="clip" src=".media/audio/sfx/sfx_001.mp3" data-start="7.80" data-duration="0.14" data-media-start="0.14" data-volume="0.55" data-track-index="20"></audio>
+      <audio id="sfx-click-5" class="clip" src=".media/audio/sfx/sfx_001.mp3" data-start="8.40" data-duration="0.14" data-media-start="0.14" data-volume="0.55" data-track-index="20"></audio>
+      <audio id="sfx-click-6" class="clip" src=".media/audio/sfx/sfx_001.mp3" data-start="9.00" data-duration="0.14" data-media-start="0.14" data-volume="0.55" data-track-index="20"></audio>
+      <audio id="sfx-click-7" class="clip" src=".media/audio/sfx/sfx_001.mp3" data-start="9.60" data-duration="0.14" data-media-start="0.14" data-volume="0.55" data-track-index="20"></audio>
+      <audio id="sfx-chime-1" class="clip" src=".media/audio/sfx/sfx_002.mp3" data-start="10.30" data-duration="2.5" data-volume="0.45" data-track-index="21"></audio>
+      <audio id="sfx-whoosh-1" class="clip" src=".media/audio/sfx/sfx_003.mp3" data-start="3.55" data-duration="2.5" data-media-start="2" data-volume="0.35" data-track-index="22"></audio>
+      <audio id="sfx-whoosh-2" class="clip" src=".media/audio/sfx/sfx_003.mp3" data-start="11.45" data-duration="2.5" data-media-start="2" data-volume="0.35" data-track-index="22"></audio>
+    </div>
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      const E = "power3.out", IO = "power3.inOut", cur = "#cursor-svg";
+      const v = { n: 6.6 };
+      const show = () => { document.getElementById("num").textContent = (Math.round(v.n * 100) / 100).toString() + " GB"; };
+
+      // hook: the red number alone, then the clutter crowds it
+      tl.fromTo("#num", { scale: 1.25, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.8, ease: E }, 0)
+        .fromTo("#free", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 0.5)
+        .fromTo(".tile", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.45, stagger: 0.16, ease: "back.out(1.5)" }, 1.4)
+        .fromTo("#pull", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 2.2)
+        .to("#pull", { opacity: 0, duration: 0.3 }, 5.0)
+        // reveal: Lega arrives and the cursor presses the number
+        .fromTo("#mark", { opacity: 0, y: -30 }, { opacity: 1, y: 0, duration: 0.6, ease: E }, 5.1)
+        .fromTo(cur, { x: 1700, y: 1000, opacity: 0 }, { x: 1120, y: 470, opacity: 1, duration: 0.9, ease: IO }, 5.2)
+        .to([cur, "#num"], { scale: 0.94, duration: 0.1, yoyo: true, repeat: 1 }, 6.15)
+        .to(cur, { opacity: 0, x: 1300, y: 900, duration: 0.6, ease: IO }, 6.5);
+
+      // proof: each cache leaves and the number grows by its size; Comet stays
+      const steps = [["#t-codex", 14.1], ["#t-chrome", 14.85], ["#t-brew", 15.39], ["#t-npm", 16.69], ["#t-go", 17.24], ["#t-clang", 18.05]];
+      steps.forEach(([id, to], i) => {
+        const t = 6.6 + i * 0.6;
+        tl.to(id, { scale: 0.4, opacity: 0, x: (i % 2 ? -1 : 1) * 80, duration: 0.45, ease: "power2.in" }, t)
+          .to(v, { n: to, duration: 0.5, ease: "power2.out", onUpdate: show }, t + 0.15);
+      });
+      tl.set("#comet-note", { textContent: "Skipped, Comet is open" }, 7.2)
+        .fromTo("#t-comet", { scale: 1 }, { scale: 1.06, duration: 0.2, yoyo: true, repeat: 3 }, 7.2)
+        // payoff: the number turns teal and settles
+        .to("#num", { color: "#0f8072", duration: 0.6, ease: E }, 10.3)
+        .set("#free", { textContent: "free after one click" }, 10.3)
+        .to(["#t-comet", "#mark"], { opacity: 0.35, duration: 0.6 }, 11.2);
+
+      tl.fromTo("#claim", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.8, ease: E }, 13.1)
+        .fromTo("#e-icon", { scale: 0.3, opacity: 0, rotation: -30 }, { scale: 1, opacity: 1, rotation: 0, duration: 0.7, ease: "back.out(1.7)" }, 15.65)
+        .fromTo("#e-name", { opacity: 0, x: -40 }, { opacity: 1, x: 0, duration: 0.5, ease: E }, 16)
+        .fromTo("#e-cta", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 16.3)
+        .fromTo("#e-url", { opacity: 0 }, { opacity: 1, duration: 0.4 }, 16.5);
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <style>
+      /* Film C, "Inside the ring": the camera dives into the disk ring of Lega's real panel, clears three layers
+         of clutter, then pulls back out to the panel after cleaning. Names and sizes are Lega's own (demo mode). */
+      @font-face { font-family: "Host Grotesk"; src: url("assets/fonts/host.woff2") format("woff2"); font-weight: 300 800; }
+      :root { --ground: #e3ebe2; --ink: #121a16; --muted: #56635c; --teal: #0f8072; --red: #e5484d; --orange: #b8681a; --line: rgba(18,26,22,.1); }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--ground); }
+      #root { position: relative; width: 100%; height: 100%; font-family: "Host Grotesk", sans-serif; color: var(--ink); overflow: hidden; }
+      #bg { position: absolute; inset: 0; background: radial-gradient(60% 70% at 50% 50%, #f4f8f3, transparent 70%), var(--ground); }
+      .scene { position: absolute; inset: 0; }
+      .cap { position: absolute; font-weight: 600; letter-spacing: -0.03em; line-height: 1.05; }
+      #p-before, #p-after { position: absolute; left: 640px; top: 10px; width: 640px; border-radius: 30px; }
+      #ring { position: absolute; left: 510px; top: 90px; width: 900px; height: 900px; }
+      #ring circle { fill: none; stroke-width: 36; }
+      #center { left: 0; right: 0; top: 470px; text-align: center; font-size: 120px; font-weight: 700; color: var(--red); font-variant-numeric: tabular-nums; }
+      #center-sub { left: 0; right: 0; top: 610px; text-align: center; font-size: 40px; color: var(--muted); }
+      .layer { position: absolute; inset: 0; }
+      .label { left: 0; right: 0; top: 300px; text-align: center; font-size: 44px; color: var(--muted); font-weight: 500; }
+      .chip { position: absolute; display: flex; align-items: center; gap: 16px; padding: 16px 22px; background: #fff; border-radius: 20px; border: 1px solid var(--line); box-shadow: 0 16px 40px rgba(20,40,30,.12); }
+      .chip img { width: 52px; height: 52px; object-fit: contain; }
+      .chip .ico { width: 52px; height: 52px; border-radius: 12px; background: #e7f2ef; color: var(--teal); display: grid; place-items: center; font-size: 26px; font-weight: 700; }
+      .chip b { display: block; font-size: 30px; font-weight: 600; white-space: nowrap; }
+      .chip span { font-size: 28px; color: var(--muted); white-space: nowrap; }
+      #comet-note { color: var(--orange); }
+      #claim { left: 0; right: 0; top: 420px; text-align: center; font-size: 128px; }
+      #e-icon { position: absolute; left: 700px; top: 330px; width: 180px; height: 180px; border-radius: 42px; }
+      #e-name { left: 920px; top: 360px; font-size: 140px; }
+      #e-cta { left: 0; right: 0; top: 600px; text-align: center; font-size: 46px; font-weight: 500; }
+      #e-cta span { display: inline-block; background: var(--teal); color: #fff; padding: 22px 44px; border-radius: 999px; margin-right: 24px; }
+      #e-url { left: 0; right: 0; top: 720px; text-align: center; font-size: 40px; color: var(--muted); font-weight: 500; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="21.8" data-width="1920" data-height="1080">
+      <div id="bg"></div>
+      <div id="s0" class="scene clip" data-start="0" data-duration="2.6" data-track-index="1"><img id="p-before" src="assets/captures/panel-before.png" alt="" /></div>
+      <div id="s1" class="scene clip" data-start="1.8" data-duration="12.6" data-track-index="2">
+        <svg id="ring" viewBox="0 0 900 900"><circle cx="450" cy="450" r="400" stroke="#dfe6de" /><circle id="arc" cx="450" cy="450" r="400" stroke="#e5484d" stroke-linecap="round" pathLength="100" stroke-dasharray="97 100" transform="rotate(-90 450 450)" /></svg>
+        <div id="center" class="cap">6.6 GB</div>
+        <div id="center-sub" class="cap">free</div>
+        <div id="L1" class="layer">
+          <div class="label cap">Browser caches</div>
+          <div class="chip" id="c-chrome" style="left:500px;top:720px"><img src="assets/icons/chrome.svg" alt="" /><div><b>Cache Google Chrome</b><span>748 MB</span></div></div>
+          <div class="chip" id="c-comet" style="left:1000px;top:720px"><img src="assets/icons/perplexity.svg" alt="" /><div><b>Cache Comet</b><span id="comet-note">436 MB</span></div></div>
+        </div>
+        <div id="L2" class="layer">
+          <div class="label cap">Old app versions</div>
+          <div class="chip" id="c-codex" style="left:770px;top:720px"><img src="assets/icons/openai.svg" alt="" /><div><b>Old Codex versions</b><span>7.5 GB</span></div></div>
+        </div>
+        <div id="L3" class="layer">
+          <div class="label cap">Build leftovers</div>
+          <div class="chip" style="left:560px;top:700px"><img src="assets/icons/homebrew.svg" alt="" /><div><b>Homebrew</b><span>543 MB</span></div></div>
+          <div class="chip" style="left:990px;top:700px"><img src="assets/icons/npm.svg" alt="" /><div><b>npm</b><span>1.3 GB</span></div></div>
+          <div class="chip" style="left:560px;top:820px"><img src="assets/icons/go.svg" alt="" /><div><b>Go build</b><span>547 MB</span></div></div>
+          <div class="chip" style="left:990px;top:820px"><div class="ico">{ }</div><div><b>Compiler</b><span>812 MB</span></div></div>
+        </div>
+      </div>
+      <div id="s2" class="scene clip" data-start="14" data-duration="2.6" data-track-index="3"><img id="p-after" src="assets/captures/panel-after.png" alt="" /></div>
+      <div id="s3" class="scene clip" data-start="16.6" data-duration="2" data-track-index="4"><h2 id="claim" class="cap">One button, room to breathe.</h2></div>
+      <div id="s4" class="scene clip" data-start="18.6" data-duration="3.2" data-track-index="5">
+        <img id="e-icon" src="assets/icons/lega.png" alt="" />
+        <h2 id="e-name" class="cap">Lega</h2>
+        <div id="e-cta" class="cap"><span>Download for Mac</span>Free</div>
+        <div id="e-url" class="cap">lega.wiraperdana.com</div>
+      </div>
+      <audio id="sfx-click-1" class="clip" src=".media/audio/sfx/sfx_001.mp3" data-start="4.10" data-duration="0.14" data-media-start="0.14" data-volume="0.55" data-track-index="20"></audio>
+      <audio id="sfx-click-2" class="clip" src=".media/audio/sfx/sfx_001.mp3" data-start="7.90" data-duration="0.14" data-media-start="0.14" data-volume="0.55" data-track-index="20"></audio>
+      <audio id="sfx-click-3" class="clip" src=".media/audio/sfx/sfx_001.mp3" data-start="11.70" data-duration="0.14" data-media-start="0.14" data-volume="0.55" data-track-index="20"></audio>
+      <audio id="sfx-click-4" class="clip" src=".media/audio/sfx/sfx_001.mp3" data-start="11.88" data-duration="0.14" data-media-start="0.14" data-volume="0.55" data-track-index="20"></audio>
+      <audio id="sfx-click-5" class="clip" src=".media/audio/sfx/sfx_001.mp3" data-start="12.06" data-duration="0.14" data-media-start="0.14" data-volume="0.55" data-track-index="20"></audio>
+      <audio id="sfx-click-6" class="clip" src=".media/audio/sfx/sfx_001.mp3" data-start="12.24" data-duration="0.14" data-media-start="0.14" data-volume="0.55" data-track-index="20"></audio>
+      <audio id="sfx-chime-1" class="clip" src=".media/audio/sfx/sfx_002.mp3" data-start="12.20" data-duration="2.5" data-volume="0.45" data-track-index="21"></audio>
+      <audio id="sfx-whoosh-1" class="clip" src=".media/audio/sfx/sfx_003.mp3" data-start="0.65" data-duration="2.5" data-media-start="2" data-volume="0.35" data-track-index="22"></audio>
+      <audio id="sfx-whoosh-2" class="clip" src=".media/audio/sfx/sfx_003.mp3" data-start="12.45" data-duration="2.5" data-media-start="2" data-volume="0.35" data-track-index="22"></audio>
+    </div>
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      const E = "power3.out", IO = "power3.inOut";
+      const v = { n: 6.6 };
+      const show = () => { document.getElementById("center").textContent = (Math.round(v.n * 100) / 100) + " GB"; };
+      // the ring in panel-before.png sits at about 12% x 8% of the image: the camera falls into it
+      tl.fromTo("#p-before", { scale: 1, transformOrigin: "11% 12.8%" }, { scale: 14, x: 250, y: 392, duration: 2.2, ease: "power3.in" }, 0.2)
+        .fromTo("#p-before", { opacity: 1 }, { opacity: 0, duration: 0.3 }, 2.2)
+        .fromTo("#ring", { scale: 1.75, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.9, ease: E }, 2.15)
+        .fromTo(["#center", "#center-sub"], { opacity: 0 }, { opacity: 1, duration: 0.4 }, 2.5);
+      // each layer: arrives, is named, clears; the camera dives on to the next
+      const layer = (id, at, chips, to, keep) => {
+        tl.fromTo(id, { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.5, ease: E }, at)
+          .fromTo(id + " .chip", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.35, stagger: 0.12, ease: E }, at + 0.2);
+        chips.forEach((c, i) => tl.to(c, { opacity: 0, scale: 0.3, x: 0, y: -260, duration: 0.45, ease: "power2.in" }, at + 1.5 + i * 0.18));
+        tl.to(v, { n: to, duration: 0.7, ease: "power2.out", onUpdate: show }, at + 1.7);
+        if (keep) tl.set("#comet-note", { textContent: "Skipped, Comet is open" }, at + 1.5).fromTo("#c-comet", { scale: 1 }, { scale: 1.08, duration: 0.2, yoyo: true, repeat: 3 }, at + 1.5);
+        tl.to(id, { opacity: 0, scale: 1.6, duration: 0.5, ease: "power2.in" }, at + 3.2);
+      };
+      layer("#L1", 2.6, ["#c-chrome"], 7.35, true);
+      layer("#L2", 6.4, ["#c-codex"], 14.85, false);
+      layer("#L3", 10.2, ["#L3 .chip"], 18.05, false);
+      tl.to("#arc", { attr: { "stroke-dasharray": "93 100" }, stroke: "#0f8072", duration: 1.2, ease: E }, 12.2)
+        .to("#center", { color: "#0f8072", duration: 0.6 }, 12.2)
+        .set("#center-sub", { textContent: "free after one click" }, 12.2)
+        // pull back out to the real panel after cleaning
+        .to("#ring", { scale: 6, opacity: 0, duration: 0.6, ease: "power3.in" }, 13.8)
+        .to(["#center", "#center-sub"], { opacity: 0, duration: 0.3 }, 13.7)
+        .fromTo("#p-after", { scale: 12, x: 250, y: 395, transformOrigin: "11% 12.2%", opacity: 0 }, { scale: 1, x: 0, y: 0, opacity: 1, duration: 1.4, ease: "power3.out" }, 14);
+      tl.fromTo("#claim", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.8, ease: E }, 16.7)
+        .fromTo("#e-icon", { scale: 0.3, opacity: 0, rotation: -30 }, { scale: 1, opacity: 1, rotation: 0, duration: 0.7, ease: "back.out(1.7)" }, 18.65)
+        .fromTo("#e-name", { opacity: 0, x: -40 }, { opacity: 1, x: 0, duration: 0.5, ease: E }, 19)
+        .fromTo("#e-cta", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 19.3)
+        .fromTo("#e-url", { opacity: 0 }, { opacity: 1, duration: 0.4 }, 19.5);
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>
