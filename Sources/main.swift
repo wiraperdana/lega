@@ -17,6 +17,7 @@ struct CacheTarget: Identifiable {
     let paths: [String]
     var blockers: [String] = []      // nama aplikasi yang harus tertutup dulu
     var codexReleases = false        // target khusus: versi lama Codex
+    var app: String? = nil           // nama aplikasi untuk ikon aslinya
 }
 
 struct FileItem: Identifiable {
@@ -34,11 +35,11 @@ struct Pending {
 }
 
 let quickTargets: [CacheTarget] = [
-    CacheTarget(id: "codex", name: "Versi lama Codex", note: "Versi aktif dan dua terbaru disimpan", icon: "shippingbox", paths: [], codexReleases: true),
-    CacheTarget(id: "arc", name: "Cache Arc", note: "Dibuat ulang saat browsing", icon: "globe", paths: ["~/Library/Caches/Arc"], blockers: ["Arc"]),
-    CacheTarget(id: "comet", name: "Cache Comet", note: "Dibuat ulang saat browsing", icon: "globe", paths: ["~/Library/Caches/Comet"], blockers: ["Comet"]),
-    CacheTarget(id: "chrome", name: "Cache Google Chrome", note: "Dibuat ulang saat browsing", icon: "globe", paths: ["~/Library/Caches/Google/Chrome"], blockers: ["Google Chrome"]),
-    CacheTarget(id: "zoom", name: "Cache Zoom", note: "Dibuat ulang saat Zoom dipakai", icon: "video", paths: ["~/Library/Caches/us.zoom.xos"], blockers: ["zoom.us"]),
+    CacheTarget(id: "codex", name: "Versi lama Codex", note: "Versi aktif dan dua terbaru disimpan", icon: "shippingbox", paths: [], codexReleases: true, app: "Codex"),
+    CacheTarget(id: "arc", name: "Cache Arc", note: "Dibuat ulang saat browsing", icon: "globe", paths: ["~/Library/Caches/Arc"], blockers: ["Arc"], app: "Arc"),
+    CacheTarget(id: "comet", name: "Cache Comet", note: "Dibuat ulang saat browsing", icon: "globe", paths: ["~/Library/Caches/Comet"], blockers: ["Comet"], app: "Comet"),
+    CacheTarget(id: "chrome", name: "Cache Google Chrome", note: "Dibuat ulang saat browsing", icon: "globe", paths: ["~/Library/Caches/Google/Chrome"], blockers: ["Google Chrome"], app: "Google Chrome"),
+    CacheTarget(id: "zoom", name: "Cache Zoom", note: "Dibuat ulang saat Zoom dipakai", icon: "video", paths: ["~/Library/Caches/us.zoom.xos"], blockers: ["zoom.us"], app: "zoom.us"),
     CacheTarget(id: "zcode", name: "Unduhan update zcode", note: "Diunduh ulang saat update berikutnya", icon: "arrow.down.circle", paths: ["~/Library/Caches/@zcodedesktop-updater"]),
     CacheTarget(id: "brew", name: "Cache Homebrew", note: "Unduhan paket lama", icon: "mug", paths: ["~/Library/Caches/Homebrew"]),
     CacheTarget(id: "npm", name: "Cache npm", note: "Unduhan paket Node.js", icon: "cube", paths: ["~/.npm/_cacache"]),
@@ -209,6 +210,11 @@ func fmt(_ b: Int64) -> String {
 
 let accent = Color(red: 0.05, green: 0.56, blue: 0.50)
 
+/// "sistem" mengikuti macOS, "terang" dan "gelap" memaksa salah satunya.
+func scheme(_ appearance: String) -> ColorScheme? {
+    switch appearance { case "terang": .light; case "gelap": .dark; default: nil }
+}
+
 // MARK: - Model
 
 @MainActor
@@ -369,6 +375,72 @@ final class Model: ObservableObject {
     }
 }
 
+// Item opsi lanjutan, dipakai bersama oleh kedua tampilan
+struct AdvItem: Identifiable {
+    let id: String
+    let symbol: String
+    let initials: String
+    let title: String
+    let size: Int64?
+    let note: String
+    let short: String
+    let button: String
+    var enabled = true
+    var prominent = false
+    let action: () -> Void
+}
+
+extension Model {
+    var visibleQuick: [CacheTarget] {
+        quickTargets.filter { (sizes[$0.id] ?? 0) > 0 || statuses[$0.id] != nil }
+    }
+
+    var advItems: [AdvItem] {
+        var a: [AdvItem] = []
+        if (adv["whatsapp"] ?? 0) > 0 {
+            a.append(AdvItem(id: "whatsapp", symbol: "message", initials: "WA", title: "Media WhatsApp", size: adv["whatsapp"],
+                             note: "Rapikan lewat Settings, Storage di WhatsApp. Jangan hapus filenya langsung.",
+                             short: "Dirapikan lewat aplikasinya", button: "Buka aplikasi", prominent: true) {
+                NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/WhatsApp.app"))
+            })
+        }
+        if (adv["claudevm"] ?? 0) > 0 {
+            a.append(AdvItem(id: "claudevm", symbol: "cpu", initials: "VM", title: "VM Claude Desktop", size: adv["claudevm"],
+                             note: "Diunduh ulang kalau fitur agent dipakai lagi. Claude harus tertutup.",
+                             short: "Diunduh ulang saat dipakai", button: "Hapus") { [self] in
+                removeFolder("claudevm", "~/Library/Application Support/Claude/vm_bundles", blockers: ["Claude"],
+                             title: "Hapus VM Claude Desktop?",
+                             message: "Claude Desktop akan mengunduhnya ulang kalau fitur agent dipakai lagi. Penghapusan ini permanen.")
+            })
+        }
+        if mauInstalled {
+            a.append(AdvItem(id: "mau", symbol: "arrow.triangle.2.circlepath", initials: "MS", title: "Microsoft AutoUpdate", size: nil,
+                             note: msApps.isEmpty ? "Tidak ada aplikasi Microsoft lagi. Updater ini aman dihapus."
+                                                  : "Masih dipakai \(msApps.joined(separator: ", ")).",
+                             short: msApps.isEmpty ? "Tak ada aplikasi Microsoft" : "Masih dipakai aplikasi Microsoft",
+                             button: "Hapus", enabled: msApps.isEmpty) { [self] in removeMAU() })
+        }
+        if (adv["autorecover"] ?? 0) > 0 {
+            a.append(AdvItem(id: "autorecover", symbol: "doc.badge.clock", initials: "AR", title: "AutoRecovery Office", size: adv["autorecover"],
+                             note: "Salinan darurat Word, Excel, PowerPoint yang tertinggal.",
+                             short: "Salinan darurat tertinggal", button: "Ke Trash") { [self] in cleanAutoRecover() })
+        }
+        if (adv["playwright"] ?? 0) > 0 {
+            a.append(AdvItem(id: "playwright", symbol: "theatermasks", initials: "PW", title: "Browser Playwright", size: adv["playwright"],
+                             note: "Browser uji otomatis. Diunduh ulang saat dibutuhkan.",
+                             short: "Browser uji otomatis", button: "Hapus") { [self] in
+                removeFolder("playwright", "~/Library/Caches/ms-playwright",
+                             title: "Hapus browser Playwright?",
+                             message: "Akan diunduh ulang saat playwright install dijalankan. Penghapusan ini permanen.")
+            })
+        }
+        a.append(AdvItem(id: "trash", symbol: "trash", initials: "TR", title: "Trash", size: nil,
+                         note: "File di Trash baru membebaskan ruang setelah dikosongkan.",
+                         short: "Kosongkan lewat Finder", button: "Kosongkan") { [self] in emptyTrash() })
+        return a
+    }
+}
+
 // MARK: - Komponen
 
 struct Ring: View {
@@ -407,12 +479,115 @@ struct SectionTitle: View {
     }
 }
 
+/// Ikon asli aplikasinya bila terpasang, selain itu simbol bawaan.
+struct TargetIcon: View {
+    let target: CacheTarget
+    var body: some View {
+        if let path = appPath {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: path)).resizable().frame(width: 28, height: 28)
+        } else {
+            IconTile(symbol: target.icon)
+        }
+    }
+    var appPath: String? {
+        guard let a = target.app else { return nil }
+        return ["/Applications/\(a).app", Engine.url("~/Applications/\(a).app").path]
+            .first { FileManager.default.fileExists(atPath: $0) }
+    }
+}
+
+/// Lingkaran berisi dua huruf, seperti di landing page.
+struct Avatar: View {
+    let initials: String
+    var body: some View {
+        let hue = Double(initials.unicodeScalars.reduce(0) { $0 &* 31 &+ Int($1.value) } % 360) / 360
+        Text(initials)
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .foregroundStyle(Color(hue: hue, saturation: 0.45, brightness: 0.45))
+            .frame(width: 32, height: 32)
+            .background(Circle().fill(Color(hue: hue, saturation: 0.18, brightness: 0.95)))
+            .overlay(Circle().stroke(.quaternary))
+    }
+}
+
+struct PillButtonStyle: ButtonStyle {
+    var prominent = false
+    func makeBody(configuration: Configuration) -> some View {
+        PillLabel(label: configuration.label, prominent: prominent, pressed: configuration.isPressed)
+    }
+}
+
+struct PillLabel<L: View>: View {
+    let label: L
+    let prominent: Bool
+    let pressed: Bool
+    @Environment(\.isEnabled) private var enabled
+    @State private var hover = false
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle().fill(prominent ? Color.primary : Color.secondary.opacity(0.6)).frame(width: 6, height: 6)
+            label
+        }
+        .font(.callout.weight(prominent ? .medium : .regular))
+        .foregroundStyle(enabled ? Color.primary : Color.secondary)
+        .padding(.horizontal, 12).padding(.vertical, 5)
+        .background(Capsule().fill(prominent ? Color.primary.opacity(0.08) : Color(nsColor: .controlBackgroundColor)))
+        .overlay(Capsule().stroke(Color.primary.opacity(hover && enabled ? 0.3 : 0.12)))
+        .scaleEffect(pressed ? 0.97 : 1)
+        .opacity(enabled ? 1 : 0.5)
+        .onHover { hover = $0 }
+        .animation(.easeOut(duration: 0.12), value: hover)
+    }
+}
+
 // MARK: - Jendela utama
 
 struct MainView: View {
     @EnvironmentObject var m: Model
+    @AppStorage("viewMode") private var viewMode = "sidebar"
+    @AppStorage("appearance") private var appearance = "sistem"
 
     var body: some View {
+        Group {
+            if viewMode == "sidebar" { SidebarLayout() } else { classic }
+        }
+        .toolbar {
+            ToolbarItem {
+                Picker("Tampilan", selection: $viewMode) {
+                    Image(systemName: "sidebar.left").tag("sidebar").help("Tampilan sidebar")
+                    Image(systemName: "rectangle.grid.1x2").tag("halaman").help("Tampilan satu halaman")
+                }
+                .pickerStyle(.segmented)
+                .help("Pilih tampilan")
+            }
+            ToolbarItem {
+                Menu {
+                    Picker("Mode", selection: $appearance) {
+                        Label("Ikuti sistem", systemImage: "circle.lefthalf.filled").tag("sistem")
+                        Label("Terang", systemImage: "sun.max").tag("terang")
+                        Label("Gelap", systemImage: "moon").tag("gelap")
+                    }
+                    .pickerStyle(.inline)
+                } label: {
+                    Image(systemName: appearance == "terang" ? "sun.max" : appearance == "gelap" ? "moon" : "circle.lefthalf.filled")
+                }
+                .help("Mode terang atau gelap")
+            }
+            ToolbarItem {
+                Button { m.refresh() } label: { Label("Pindai ulang", systemImage: "arrow.clockwise") }
+                    .disabled(m.scanning || m.scanningAdv || m.busy)
+                    .help("Pindai ulang")
+            }
+        }
+        .alert(m.pending?.title ?? "",
+               isPresented: Binding(get: { m.pending != nil }, set: { if !$0 { m.pending = nil } }),
+               presenting: m.pending) { p in
+            Button(p.confirm, role: .destructive) { p.action() }
+            Button("Batal", role: .cancel) {}
+        } message: { p in Text(p.message) }
+    }
+
+    var classic: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 hero
@@ -426,19 +601,6 @@ struct MainView: View {
             .frame(maxWidth: .infinity)
         }
         .background(Color(nsColor: .windowBackgroundColor))
-        .toolbar {
-            ToolbarItem {
-                Button { m.refresh() } label: { Label("Pindai ulang", systemImage: "arrow.clockwise") }
-                    .disabled(m.scanning || m.scanningAdv || m.busy)
-                    .help("Pindai ulang")
-            }
-        }
-        .alert(m.pending?.title ?? "",
-               isPresented: Binding(get: { m.pending != nil }, set: { if !$0 { m.pending = nil } }),
-               presenting: m.pending) { p in
-            Button(p.confirm, role: .destructive) { p.action() }
-            Button("Batal", role: .cancel) {}
-        } message: { p in Text(p.message) }
     }
 
     var hero: some View {
@@ -496,7 +658,7 @@ struct MainView: View {
     }
 
     var quickSection: some View {
-        let visible = quickTargets.filter { (m.sizes[$0.id] ?? 0) > 0 || m.statuses[$0.id] != nil }
+        let visible = m.visibleQuick
         return VStack(alignment: .leading, spacing: 10) {
             SectionTitle(text: "Pembersihan cepat")
             Text("Cache yang dibuat ulang sendiri. Cache aplikasi yang sedang terbuka dilewati.")
@@ -513,7 +675,7 @@ struct MainView: View {
                 ForEach(Array(visible.enumerated()), id: \.element.id) { i, t in
                     if i > 0 { Divider().padding(.leading, 52) }
                     HStack(spacing: 12) {
-                        IconTile(symbol: t.icon)
+                        TargetIcon(target: t)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(t.name)
                             Text(m.statuses[t.id] ?? t.note).font(.caption)
@@ -535,37 +697,8 @@ struct MainView: View {
             Text("Data yang lebih besar. Setiap tindakan meminta konfirmasi dulu.")
                 .font(.callout).foregroundStyle(.secondary)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                if (m.adv["whatsapp"] ?? 0) > 0 {
-                    card("message", "Media WhatsApp", m.adv["whatsapp"],
-                         "Rapikan lewat Settings, Storage di WhatsApp. Jangan hapus filenya langsung.", "Buka WhatsApp") {
-                        NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/WhatsApp.app"))
-                    }
-                }
-                if (m.adv["claudevm"] ?? 0) > 0 {
-                    card("cpu", "VM Claude Desktop", m.adv["claudevm"],
-                         "Diunduh ulang kalau fitur agent dipakai lagi. Claude harus tertutup.", "Hapus") {
-                        m.removeFolder("claudevm", "~/Library/Application Support/Claude/vm_bundles", blockers: ["Claude"],
-                                       title: "Hapus VM Claude Desktop?",
-                                       message: "Claude Desktop akan mengunduhnya ulang kalau fitur agent dipakai lagi. Penghapusan ini permanen.")
-                    }
-                }
-                if m.mauInstalled {
-                    card("arrow.triangle.2.circlepath", "Microsoft AutoUpdate", nil,
-                         m.msApps.isEmpty ? "Tidak ada aplikasi Microsoft lagi. Updater ini aman dihapus."
-                                          : "Masih dipakai \(m.msApps.joined(separator: ", ")).",
-                         "Hapus", enabled: m.msApps.isEmpty) { m.removeMAU() }
-                }
-                if (m.adv["autorecover"] ?? 0) > 0 {
-                    card("doc.badge.clock", "AutoRecovery Office", m.adv["autorecover"],
-                         "Salinan darurat Word, Excel, PowerPoint yang tertinggal.", "Ke Trash") { m.cleanAutoRecover() }
-                }
-                if (m.adv["playwright"] ?? 0) > 0 {
-                    card("theatermasks", "Browser Playwright", m.adv["playwright"],
-                         "Browser uji otomatis. Diunduh ulang saat dibutuhkan.", "Hapus") {
-                        m.removeFolder("playwright", "~/Library/Caches/ms-playwright",
-                                       title: "Hapus browser Playwright?",
-                                       message: "Akan diunduh ulang saat playwright install dijalankan. Penghapusan ini permanen.")
-                    }
+                ForEach(m.advItems) { it in
+                    card(it.symbol, it.title, it.size, it.note, it.button, enabled: it.enabled, action: it.action)
                 }
                 if m.scanningAdv {
                     HStack(spacing: 10) { ProgressView().controlSize(.small); Text("Memindai WhatsApp").foregroundStyle(.secondary) }
@@ -573,8 +706,6 @@ struct MainView: View {
                         .frame(maxWidth: .infinity, minHeight: 168)
                         .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
                 }
-                card("trash", "Trash", nil,
-                     "File di Trash baru membebaskan ruang setelah dikosongkan.", "Kosongkan") { m.emptyTrash() }
             }
         }
         .disabled(m.busy)
@@ -650,6 +781,271 @@ struct DownloadRow: View {
     }
 }
 
+// MARK: - Tampilan sidebar
+
+enum Pane: Hashable { case cepat, lanjutan, downloads, log }
+
+struct SidebarLayout: View {
+    @EnvironmentObject var m: Model
+    @State private var pane: Pane? = .cepat
+
+    var body: some View {
+        NavigationSplitView {
+            List(selection: $pane) {
+                Text("Cepat").badge(m.visibleQuick.count).tag(Pane.cepat)
+                Text("Lanjutan").badge(m.advItems.count).tag(Pane.lanjutan)
+                Text("Downloads").badge(m.downloads.count).tag(Pane.downloads)
+                Text("Log").tag(Pane.log)
+            }
+            .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 240)
+        } detail: {
+            Group {
+                switch pane ?? .cepat {
+                case .cepat: QuickPane()
+                case .lanjutan: AdvancedPane()
+                case .downloads: DownloadsPane()
+                case .log: LogPane()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(Color(nsColor: .textBackgroundColor))
+        }
+        .navigationTitle(title)
+    }
+
+    var title: String {
+        switch pane ?? .cepat {
+        case .cepat: "Pembersihan cepat"
+        case .lanjutan: "Opsi lanjutan"
+        case .downloads: "Downloads"
+        case .log: "Log"
+        }
+    }
+}
+
+/// Status pemindaian berbentuk kapsul, misalnya "Memindai".
+struct ScanChip: View {
+    let text: String
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.mini)
+            Text(text).font(.callout)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 6)
+        .background(Capsule().fill(Color(nsColor: .controlBackgroundColor)))
+        .overlay(Capsule().stroke(Color.primary.opacity(0.12)))
+    }
+}
+
+struct ResultChip: View {
+    @EnvironmentObject var m: Model
+    let text: String
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(accent)
+            Text(text)
+            Spacer()
+            Button { m.result = nil } label: { Image(systemName: "xmark") }
+                .buttonStyle(.plain).foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+struct QuickPane: View {
+    @EnvironmentObject var m: Model
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(spacing: 20) {
+                    ZStack {
+                        Ring(fraction: m.usedFraction, low: m.isLow, lineWidth: 8)
+                        Text("\(Int((m.usedFraction * 100).rounded()))%")
+                            .font(.system(size: 15, weight: .semibold, design: .rounded)).monospacedDigit()
+                    }
+                    .frame(width: 68, height: 68)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(fmt(m.free))
+                            .font(.system(size: 30, weight: .bold, design: .rounded)).monospacedDigit()
+                            .foregroundStyle(m.isLow ? .red : .primary)
+                            .contentTransition(.numericText())
+                        Text(m.isLow ? "Kosong. Di bawah 10 GB, Mac bisa melambat." : "kosong dari \(fmt(m.total))")
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    Button { m.cleanQuick() } label: {
+                        HStack(spacing: 8) {
+                            if m.busy { ProgressView().controlSize(.small).tint(.white) } else { Image(systemName: "sparkles") }
+                            Text(m.busy ? "Membersihkan" : "Bersihkan \(fmt(m.quickTotal))")
+                        }
+                        .font(.headline)
+                        .padding(.horizontal, 16).padding(.vertical, 8)
+                    }
+                    .buttonStyle(.borderedProminent).tint(accent).clipShape(Capsule())
+                    .disabled(m.busy || m.scanning || m.quickTotal == 0)
+                }
+                .padding(20)
+                .background(RoundedRectangle(cornerRadius: 16).fill(Color(nsColor: .controlBackgroundColor)))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.08)))
+
+                if let r = m.result { ResultChip(text: r) }
+                if m.scanning { ScanChip(text: "Memindai cache") }
+
+                VStack(spacing: 0) {
+                    if m.visibleQuick.isEmpty && !m.scanning {
+                        Text("Semua cache sudah bersih.").foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(16)
+                    }
+                    ForEach(Array(m.visibleQuick.enumerated()), id: \.element.id) { i, t in
+                        if i > 0 { Divider() }
+                        HStack(spacing: 14) {
+                            TargetIcon(target: t)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t.name).font(.body.weight(.medium))
+                                Text(m.statuses[t.id] ?? t.note).font(.callout)
+                                    .foregroundStyle(m.statuses[t.id] == nil ? Color.secondary : Color.orange)
+                            }
+                            Spacer()
+                            Text(fmt(m.sizes[t.id] ?? 0)).monospacedDigit().foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 12)
+                    }
+                }
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.08)))
+                Text("Cache yang dibuat ulang sendiri. Cache aplikasi yang sedang terbuka dilewati.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            .padding(24)
+        }
+    }
+}
+
+struct AdvancedPane: View {
+    @EnvironmentObject var m: Model
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if let r = m.result { ResultChip(text: r) }
+                if m.scanningAdv { ScanChip(text: "Memindai data besar") }
+                VStack(spacing: 0) {
+                    ForEach(Array(m.advItems.enumerated()), id: \.element.id) { i, it in
+                        if i > 0 { Divider() }
+                        HStack(spacing: 14) {
+                            Avatar(initials: it.initials)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(it.title).font(.body.weight(.medium))
+                                Text(it.short).font(.callout).foregroundStyle(.secondary)
+                            }
+                            .help(it.note)
+                            Spacer()
+                            if let s = it.size { Text(fmt(s)).monospacedDigit().foregroundStyle(.secondary) }
+                            Button(it.button, action: it.action)
+                                .buttonStyle(PillButtonStyle(prominent: it.prominent))
+                                .disabled(!it.enabled || m.busy)
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 12)
+                    }
+                }
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.08)))
+                Text("Setiap tindakan meminta konfirmasi dulu.").font(.callout).foregroundStyle(.secondary)
+            }
+            .padding(24)
+        }
+    }
+}
+
+struct DownloadsPane: View {
+    @EnvironmentObject var m: Model
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if let r = m.result { ResultChip(text: r) }
+                if m.scanningAdv && m.downloads.isEmpty { ScanChip(text: "Memindai Downloads") }
+                if m.downloads.isEmpty && !m.scanningAdv {
+                    Text("Kosong, atau Lega belum diizinkan membaca Downloads.").foregroundStyle(.secondary)
+                }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 14)], spacing: 14) {
+                    ForEach(m.downloads) { FileTile(item: $0) }
+                }
+            }
+            .padding(24)
+        }
+    }
+}
+
+struct FileTile: View {
+    @EnvironmentObject var m: Model
+    let item: FileItem
+    @State private var hover = false
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path))
+                .resizable().frame(width: 36, height: 36)
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color(nsColor: .textBackgroundColor)))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.08)))
+            VStack(spacing: 2) {
+                Text(item.url.lastPathComponent).font(.callout.weight(.medium))
+                    .lineLimit(1).truncationMode(.middle)
+                Text(fmt(item.size)).font(.callout).monospacedDigit().foregroundStyle(.secondary)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color(nsColor: .controlBackgroundColor)))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(hover ? 0.2 : 0.08)))
+        .overlay(alignment: .topTrailing) {
+            if hover {
+                HStack(spacing: 2) {
+                    Button { NSWorkspace.shared.activateFileViewerSelecting([item.url]) } label: { Image(systemName: "magnifyingglass") }
+                        .help("Tampilkan di Finder")
+                    Button { m.trashDownload(item) } label: { Image(systemName: "trash") }
+                        .help("Pindahkan ke Trash")
+                }
+                .buttonStyle(.borderless).padding(6)
+            }
+        }
+        .offset(y: hover ? -2 : 0)
+        .animation(.easeOut(duration: 0.15), value: hover)
+        .contentShape(Rectangle())
+        .onHover { hover = $0 }
+        .contextMenu {
+            Button("Tampilkan di Finder") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
+            Button("Pindahkan ke Trash") { m.trashDownload(item) }
+        }
+        .help(item.url.lastPathComponent)
+        .disabled(m.busy)
+    }
+}
+
+struct LogPane: View {
+    @State private var lines: [String] = []
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 6) {
+                if lines.isEmpty { Text("Belum ada catatan pembersihan.").foregroundStyle(.secondary) }
+                ForEach(Array(lines.enumerated()), id: \.offset) { _, l in
+                    Text(l).font(.system(.callout, design: .monospaced)).textSelection(.enabled)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(24)
+        }
+        .onAppear(perform: load)
+    }
+
+    func load() {
+        let text = (try? String(contentsOf: Engine.url("~/Library/Logs/Lega.log"), encoding: .utf8)) ?? ""
+        lines = Array(text.split(separator: "\n").suffix(200).reversed().map(String.init))
+    }
+}
+
 // MARK: - Menu bar
 
 struct MenuBarPanel: View {
@@ -697,11 +1093,22 @@ struct MenuBarPanel: View {
 
 struct SettingsView: View {
     @AppStorage("showMenuBar") private var showMenuBar = true
+    @AppStorage("viewMode") private var viewMode = "sidebar"
+    @AppStorage("appearance") private var appearance = "sistem"
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
 
     var body: some View {
         Form {
+            Picker("Tampilan", selection: $viewMode) {
+                Text("Sidebar").tag("sidebar")
+                Text("Satu halaman").tag("halaman")
+            }
+            Picker("Mode", selection: $appearance) {
+                Text("Ikuti sistem").tag("sistem")
+                Text("Terang").tag("terang")
+                Text("Gelap").tag("gelap")
+            }
             Toggle("Buka saat Mac menyala", isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, on in setLogin(on) }
             Toggle("Tampilkan di menu bar", isOn: $showMenuBar)
@@ -711,6 +1118,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 420)
+        .preferredColorScheme(scheme(appearance))
     }
 
     func setLogin(_ on: Bool) {
@@ -747,6 +1155,7 @@ struct LegaApp: App {
     @StateObject var m = Model()
     @AppStorage("showMenuBar") private var showMenuBar = true
     @AppStorage("didSetupLogin") private var didSetupLogin = false
+    @AppStorage("appearance") private var appearance = "sistem"
 
     init() {
         // Peluncuran pertama: daftarkan sebagai login item, sesuai default produk
@@ -758,7 +1167,8 @@ struct LegaApp: App {
 
     var body: some Scene {
         Window("Lega", id: "main") {
-            MainView().environmentObject(m).frame(minWidth: 640, minHeight: 640)
+            MainView().environmentObject(m).frame(minWidth: 760, minHeight: 600)
+                .preferredColorScheme(scheme(appearance))
                 .onAppear { NSApp.setActivationPolicy(.regular); NSApp.activate(ignoringOtherApps: true) }
         }
         .windowResizability(.contentMinSize)
@@ -766,7 +1176,7 @@ struct LegaApp: App {
         .defaultLaunchBehavior(showMenuBar && wasLaunchedAtLogin ? .suppressed : .presented)
 
         MenuBarExtra(isInserted: $showMenuBar) {
-            MenuBarPanel().environmentObject(m)
+            MenuBarPanel().environmentObject(m).preferredColorScheme(scheme(appearance))
         } label: {
             Image(systemName: "sparkles")
         }
