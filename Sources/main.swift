@@ -27,25 +27,26 @@ struct FileItem: Identifiable {
     let modified: Date
 }
 
-struct Pending {
-    let title: String
-    let message: String
-    let confirm: String
-    let action: () -> Void
-}
 
-let quickTargets: [CacheTarget] = [
-    CacheTarget(id: "codex", name: "Versi lama Codex", note: "Versi aktif dan dua terbaru disimpan", icon: "shippingbox", paths: [], codexReleases: true, app: "Codex"),
-    CacheTarget(id: "arc", name: "Cache Arc", note: "Dibuat ulang saat browsing", icon: "globe", paths: ["~/Library/Caches/Arc"], blockers: ["Arc"], app: "Arc"),
-    CacheTarget(id: "comet", name: "Cache Comet", note: "Dibuat ulang saat browsing", icon: "globe", paths: ["~/Library/Caches/Comet"], blockers: ["Comet"], app: "Comet"),
-    CacheTarget(id: "chrome", name: "Cache Google Chrome", note: "Dibuat ulang saat browsing", icon: "globe", paths: ["~/Library/Caches/Google/Chrome"], blockers: ["Google Chrome"], app: "Google Chrome"),
-    CacheTarget(id: "zoom", name: "Cache Zoom", note: "Dibuat ulang saat Zoom dipakai", icon: "video", paths: ["~/Library/Caches/us.zoom.xos"], blockers: ["zoom.us"], app: "zoom.us"),
-    CacheTarget(id: "zcode", name: "Unduhan update zcode", note: "Diunduh ulang saat update berikutnya", icon: "arrow.down.circle", paths: ["~/Library/Caches/@zcodedesktop-updater"]),
-    CacheTarget(id: "brew", name: "Cache Homebrew", note: "Unduhan paket lama", icon: "mug", paths: ["~/Library/Caches/Homebrew"]),
-    CacheTarget(id: "npm", name: "Cache npm", note: "Unduhan paket Node.js", icon: "cube", paths: ["~/.npm/_cacache"]),
-    CacheTarget(id: "pip", name: "Cache pip dan uv", note: "Unduhan paket Python", icon: "cube", paths: ["~/Library/Caches/pip", "~/.cache/uv"]),
-    CacheTarget(id: "build", name: "Cache build Go dan node-gyp", note: "Hasil kompilasi sementara", icon: "hammer", paths: ["~/Library/Caches/go-build", "~/Library/Caches/node-gyp"]),
-]
+var quickTargets: [CacheTarget] { [
+    CacheTarget(id: "codex", name: tr("Versi lama Codex", "Old Codex versions"), note: tr("Versi aktif dan dua terbaru disimpan", "The active and two newest are kept"), icon: "shippingbox", paths: [], codexReleases: true, app: "Codex"),
+    CacheTarget(id: "arc", name: "Cache Arc", note: tr("Dibuat ulang saat browsing", "Rebuilt while you browse"), icon: "globe", paths: ["~/Library/Caches/Arc", "~/Library/Application Support/Arc/User Data/Default/Service Worker/CacheStorage"], blockers: ["Arc"], app: "Arc"),
+    CacheTarget(id: "comet", name: "Cache Comet", note: tr("Dibuat ulang saat browsing", "Rebuilt while you browse"), icon: "globe", paths: ["~/Library/Caches/Comet", "~/Library/Application Support/Comet/Default/Service Worker/CacheStorage"], blockers: ["Comet"], app: "Comet"),
+    CacheTarget(id: "chrome", name: "Cache Google Chrome", note: tr("Dibuat ulang saat browsing", "Rebuilt while you browse"), icon: "globe", paths: ["~/Library/Caches/Google/Chrome", "~/Library/Application Support/Google/Chrome/Default/Service Worker/CacheStorage"], blockers: ["Google Chrome"], app: "Google Chrome"),
+    CacheTarget(id: "zoom", name: "Cache Zoom", note: tr("Dibuat ulang saat Zoom dipakai", "Rebuilt when Zoom is used"), icon: "video", paths: ["~/Library/Caches/us.zoom.xos"], blockers: ["zoom.us"], app: "zoom.us"),
+    CacheTarget(id: "zcode", name: tr("Unduhan update zcode", "zcode update downloads"), note: tr("Diunduh ulang saat update berikutnya", "Downloaded again at the next update"), icon: "arrow.down.circle", paths: ["~/Library/Caches/@zcodedesktop-updater"]),
+    CacheTarget(id: "brew", name: "Cache Homebrew", note: tr("Unduhan paket lama", "Old package downloads"), icon: "mug", paths: ["~/Library/Caches/Homebrew"]),
+    CacheTarget(id: "npm", name: "Cache npm", note: tr("Unduhan paket Node.js", "Node.js package downloads"), icon: "cube", paths: ["~/.npm/_cacache"]),
+    CacheTarget(id: "pip", name: tr("Cache pip dan uv", "pip and uv cache"), note: tr("Unduhan paket Python", "Python package downloads"), icon: "cube", paths: ["~/Library/Caches/pip", "~/.cache/uv"]),
+    CacheTarget(id: "build", name: tr("Cache build Go dan node-gyp", "Go and node-gyp build cache"), note: tr("Hasil kompilasi sementara", "Temporary build output"), icon: "hammer", paths: ["~/Library/Caches/go-build", "~/Library/Caches/node-gyp"]),
+    CacheTarget(id: "clang", name: tr("Cache compiler Clang dan Swift", "Clang and Swift compiler cache"), note: tr("Dibuat ulang saat kompilasi berikutnya", "Rebuilt at the next compile"), icon: "hammer", paths: [userCacheDir() + "clang/ModuleCache"]),
+] }
+
+/// Folder cache per pengguna milik macOS, misalnya /var/folders/xx/.../C/.
+func userCacheDir() -> String {
+    var buf = [CChar](repeating: 0, count: Int(PATH_MAX))
+    return confstr(_CS_DARWIN_USER_CACHE_DIR, &buf, buf.count) > 0 ? String(cString: buf) : NSTemporaryDirectory()
+}
 
 // MARK: - Engine (berjalan di luar main thread)
 
@@ -177,14 +178,42 @@ enum Engine {
                   "~/Library/Application Support/Microsoft AU Daemon"] {
             try? fm.removeItem(at: url(p))
         }
-        if r.code != 0 { return r.out.contains("-128") ? "Dibatalkan." : "Gagal: \(r.out)" }
-        return mauInstalled() ? "Sebagian file MAU masih tersisa." : "Microsoft AutoUpdate sudah dihapus."
+        if r.code != 0 { return r.out.contains("-128") ? tr("Dibatalkan.", "Cancelled.") : tr("Gagal: \(r.out)", "Failed: \(r.out)") }
+        return mauInstalled() ? tr("Sebagian file MAU masih tersisa.", "Some MAU files are still there.") : tr("Microsoft AutoUpdate sudah dihapus.", "Microsoft AutoUpdate has been removed.")
     }
 
     static func downloadsTop(_ n: Int) -> [FileItem] {
         let dir = url("~/Downloads")
         guard let items = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]) else { return [] }
         return items.map { u in
+            FileItem(url: u, size: size(u),
+                     modified: (try? u.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast)
+        }
+        .sorted { $0.size > $1.size }
+        .prefix(n).map { $0 }
+    }
+
+    /// Ukuran file swap di disk (vm.swapusage, total).
+    static func swapTotal() -> Int64 {
+        var u = xsw_usage()
+        var n = MemoryLayout<xsw_usage>.size
+        return sysctlbyname("vm.swapusage", &u, &n, nil, 0) == 0 ? Int64(u.xsu_total) : 0
+    }
+
+    static func bootDate() -> Date {
+        var tv = timeval()
+        var n = MemoryLayout<timeval>.size
+        return sysctlbyname("kern.boottime", &tv, &n, nil, 0) == 0 ? Date(timeIntervalSince1970: Double(tv.tv_sec)) : Date()
+    }
+
+    /// Aplikasi terbesar di /Applications dan ~/Applications.
+    static func appsTop(_ n: Int) -> [FileItem] {
+        let dirs = [URL(fileURLWithPath: "/Applications"), url("~/Applications")]
+        let apps = dirs.flatMap { d in
+            ((try? fm.contentsOfDirectory(at: d, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles])) ?? [])
+                .filter { $0.pathExtension == "app" }
+        }
+        return apps.map { u in
             FileItem(url: u, size: size(u),
                      modified: (try? u.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast)
         }
@@ -202,6 +231,16 @@ enum Engine {
             try? data.write(to: f)
         }
     }
+}
+
+/// Bahasa antarmuka: "en" (default) atau "id".
+func tr(_ id: String, _ en: String) -> String {
+    (UserDefaults.standard.string(forKey: "language") ?? "en") == "id" ? id : en
+}
+
+func uptimeText(_ t: TimeInterval) -> String {
+    let d = Int(t) / 86_400, h = Int(t) % 86_400 / 3_600
+    return d > 0 ? tr("\(d) hari \(h) jam", "\(d) d \(h) h") : tr("\(h) jam", "\(h) h")
 }
 
 func fmt(_ b: Int64) -> String {
@@ -225,13 +264,21 @@ final class Model: ObservableObject {
     @Published var statuses: [String: String] = [:]
     @Published var adv: [String: Int64] = [:]
     @Published var downloads: [FileItem] = []
+    @Published var apps: [FileItem] = []
     @Published var mauInstalled = false
     @Published var msApps: [String] = []
     @Published var scanning = false      // pemindaian cepat (cache)
     @Published var scanningAdv = false   // pemindaian lanjutan (WhatsApp, Downloads)
     @Published var busy = false
     @Published var result: String?
-    @Published var pending: Pending?
+    @Published var pane: Pane = .cepat
+    @Published var showSettings = false
+    @Published var swapBytes: Int64 = 0
+    @Published var bootDate = Date()
+
+    var uptime: TimeInterval { Date().timeIntervalSince(bootDate) }
+    /// Saran restart: swap besar, atau Mac sudah lama tidak dimatikan.
+    var suggestRestart: Bool { swapBytes >= 2_000_000_000 || uptime >= 3 * 86_400 }
 
     var quickTotal: Int64 { sizes.values.reduce(0, +) }
     var usedFraction: Double { total > 0 ? Double(total - free) / Double(total) : 0 }
@@ -253,8 +300,11 @@ final class Model: ObservableObject {
             var s: [String: Int64] = [:]
             for t in quickTargets { s[t.id] = Engine.size(of: t) }
             let (f, tot) = Engine.disk()
-            let sizes = s
-            await MainActor.run { self.sizes = sizes; self.free = f; self.total = tot; self.scanning = false }
+            let sizes = s, swap = Engine.swapTotal(), boot = Engine.bootDate()
+            await MainActor.run {
+                withAnimation(.snappy) { self.sizes = sizes; self.free = f; self.total = tot }
+                self.swapBytes = swap; self.bootDate = boot; self.scanning = false
+            }
 
             // Yang cepat lebih dulu, WhatsApp paling akhir karena isinya puluhan GB
             let mau = Engine.mauInstalled()
@@ -269,6 +319,8 @@ final class Model: ObservableObject {
             await MainActor.run { self.adv["autorecover"] = ar }
             let dl = Engine.downloadsTop(12)
             await MainActor.run { self.downloads = dl }
+            let ap = Engine.appsTop(12)
+            await MainActor.run { self.apps = ap }
             let wa = Engine.size(Engine.url("~/Library/Group Containers/group.net.whatsapp.WhatsApp.shared"))
             await MainActor.run { self.adv["whatsapp"] = wa; self.scanningAdv = false }
         }
@@ -283,18 +335,26 @@ final class Model: ObservableObject {
             var freed: Int64 = 0
             for t in quickTargets {
                 if let b = t.blockers.first(where: running.contains) {
-                    st[t.id] = "Dilewati, \(b) sedang terbuka"
+                    st[t.id] = tr("Dilewati, \(b) sedang terbuka", "Skipped, \(b) is open")
                     continue
                 }
                 let r = Engine.clean(t)
                 freed += r.freed
-                if let e = r.error { st[t.id] = "Sebagian gagal: \(e)" }
+                if let e = r.error { st[t.id] = tr("Sebagian gagal: \(e)", "Partly failed: \(e)") }
             }
             Engine.log("cepat: dibebaskan \(fmt(freed))")
             let statuses = st, total = freed
             await MainActor.run {
                 self.statuses = statuses
-                self.result = total > 0 ? "\(fmt(total)) dibebaskan." : "Tidak ada yang perlu dibersihkan."
+                let skipped = statuses.count
+                if total > 0 {
+                    self.result = tr("\(fmt(total)) dibebaskan.", "\(fmt(total)) freed.")
+                } else if skipped > 0 {
+                    self.result = tr("Belum ada yang dibersihkan. \(skipped) cache dilewati karena aplikasinya terbuka.",
+                                     "Nothing cleaned yet. \(skipped) cache skipped because its app is open.")
+                } else {
+                    self.result = tr("Tidak ada yang perlu dibersihkan.", "Nothing to clean.")
+                }
                 self.busy = false
                 self.refresh()
             }
@@ -303,8 +363,16 @@ final class Model: ObservableObject {
 
     // Opsi lanjutan
 
-    func ask(_ title: String, _ message: String, confirm: String = "Hapus", _ action: @escaping () -> Void) {
-        pending = Pending(title: title, message: message, confirm: confirm, action: action)
+    func ask(_ title: String, _ message: String, confirm: String = tr("Hapus", "Delete"), _ action: @escaping () -> Void) {
+        // NSAlert bekerja dari jendela utama maupun panel menu bar
+        NSApp.activate(ignoringOtherApps: true)
+        let a = NSAlert()
+        a.messageText = title
+        a.informativeText = message
+        a.alertStyle = .warning
+        a.addButton(withTitle: confirm).hasDestructiveAction = true
+        a.addButton(withTitle: tr("Batal", "Cancel"))
+        if a.runModal() == .alertFirstButtonReturn { action() }
     }
 
     func blocked(by apps: [String]) -> String? {
@@ -322,53 +390,92 @@ final class Model: ObservableObject {
     }
 
     func removeFolder(_ label: String, _ path: String, blockers: [String] = [], title: String, message: String) {
-        if let b = blocked(by: blockers) { result = "Tutup \(b) dulu."; return }
+        if let b = blocked(by: blockers) { result = tr("Tutup \(b) dulu.", "Quit \(b) first."); return }
         ask(title, message) { [self] in
             runAdvanced(label) {
                 let u = Engine.url(path)
                 let s = Engine.size(u)
-                do { try FileManager.default.removeItem(at: u); return "\(fmt(s)) dibebaskan." }
-                catch { return "Gagal: \(error.localizedDescription)" }
+                do { try FileManager.default.removeItem(at: u); return tr("\(fmt(s)) dibebaskan.", "\(fmt(s)) freed.") }
+                catch { return tr("Gagal: \(error.localizedDescription)", "Failed: \(error.localizedDescription)") }
             }
         }
     }
 
     func cleanAutoRecover() {
-        if let b = blocked(by: Array(Engine.officeApps.values)) { result = "Tutup \(b) dulu."; return }
-        ask("Pindahkan file AutoRecovery ke Trash?",
-            "Ini salinan darurat Word, Excel, dan PowerPoint. Pastikan dokumen aslinya sudah tersimpan. File masih bisa dikembalikan dari Trash.",
-            confirm: "Ke Trash") { [self] in
+        if let b = blocked(by: Array(Engine.officeApps.values)) { result = tr("Tutup \(b) dulu.", "Quit \(b) first."); return }
+        ask(tr("Pindahkan file AutoRecovery ke Trash?", "Move AutoRecovery files to the Trash?"),
+            tr("Ini salinan darurat Word, Excel, dan PowerPoint. Pastikan dokumen aslinya sudah tersimpan. File masih bisa dikembalikan dari Trash.", "These are emergency copies from Word, Excel and PowerPoint. Make sure the original documents are saved. The files can still be restored from the Trash."),
+            confirm: tr("Ke Trash", "Move to Trash")) { [self] in
             runAdvanced("autorecover") {
                 var n = 0
                 for f in Engine.autoRecoverFiles() where (try? FileManager.default.trashItem(at: f, resultingItemURL: nil)) != nil { n += 1 }
-                return "\(n) file AutoRecovery dipindah ke Trash."
+                return tr("\(n) file AutoRecovery dipindah ke Trash.", "\(n) AutoRecovery files moved to the Trash.")
             }
         }
     }
 
     func removeMAU() {
-        ask("Hapus Microsoft AutoUpdate?",
-            "Tidak ada aplikasi Microsoft yang terdeteksi, jadi updater ini tidak lagi punya tugas. macOS akan meminta password admin.") { [self] in
+        ask(tr("Hapus Microsoft AutoUpdate?", "Remove Microsoft AutoUpdate?"),
+            tr("Tidak ada aplikasi Microsoft yang terdeteksi, jadi updater ini tidak lagi punya tugas. macOS akan meminta password admin.", "No Microsoft apps were found, so this updater has nothing left to do. macOS will ask for an admin password.")) { [self] in
             runAdvanced("mau") { Engine.removeMAU() }
         }
     }
 
+    /// Satu pintu untuk tombol Trash: aplikasi dan file Downloads.
+    func trash(_ item: FileItem) {
+        item.url.pathExtension == "app" ? trashApp(item) : trashDownload(item)
+    }
+
+    func trashApp(_ item: FileItem) {
+        let name = item.url.deletingPathExtension().lastPathComponent
+        if item.url.standardizedFileURL == Bundle.main.bundleURL.standardizedFileURL { result = tr("Lega tidak bisa membuang dirinya sendiri.", "Lega cannot move itself to the Trash."); return }
+        if NSWorkspace.shared.runningApplications.contains(where: { $0.bundleURL?.standardizedFileURL == item.url.standardizedFileURL }) {
+            result = tr("Tutup \(name) dulu.", "Quit \(name) first."); return
+        }
+        ask(tr("Pindahkan \(name) ke Trash?", "Move \(name) to the Trash?"),
+            tr("\(fmt(item.size)). Aplikasinya dipindah ke Trash dan masih bisa dikembalikan. Pengaturan dan datanya di Library tidak disentuh.", "\(fmt(item.size)). The app moves to the Trash and can still be restored. Its settings and data in Library stay untouched."),
+            confirm: tr("Ke Trash", "Move to Trash")) { [self] in
+            NSWorkspace.shared.recycle([item.url]) { _, error in
+                Task { @MainActor in
+                    if let error {
+                        self.result = tr("Gagal: \(error.localizedDescription)", "Failed: \(error.localizedDescription)")
+                    } else {
+                        Engine.log("lanjutan: trash aplikasi \(item.url.path)")
+                        self.apps.removeAll { $0.id == item.id }
+                        self.result = tr("\(name) dipindah ke Trash. Kosongkan Trash supaya ruangnya kembali.", "\(name) moved to the Trash. Empty the Trash to get the space back.")
+                    }
+                }
+            }
+        }
+    }
+
     func trashDownload(_ item: FileItem) {
-        ask("Pindahkan ke Trash?", "\(item.url.lastPathComponent) (\(fmt(item.size))). Masih bisa dikembalikan dari Trash.", confirm: "Ke Trash") { [self] in
+        ask(tr("Pindahkan ke Trash?", "Move to the Trash?"), tr("\(item.url.lastPathComponent) (\(fmt(item.size))). Masih bisa dikembalikan dari Trash.", "\(item.url.lastPathComponent) (\(fmt(item.size))). It can still be restored from the Trash."), confirm: tr("Ke Trash", "Move to Trash")) { [self] in
             do {
                 try FileManager.default.trashItem(at: item.url, resultingItemURL: nil)
                 Engine.log("lanjutan: trash \(item.url.path)")
                 downloads.removeAll { $0.id == item.id }
-                result = "\(item.url.lastPathComponent) dipindah ke Trash. Kosongkan Trash supaya ruangnya kembali."
-            } catch { result = "Gagal: \(error.localizedDescription)" }
+                result = tr("\(item.url.lastPathComponent) dipindah ke Trash. Kosongkan Trash supaya ruangnya kembali.", "\(item.url.lastPathComponent) moved to the Trash. Empty the Trash to get the space back.")
+            } catch { result = tr("Gagal: \(error.localizedDescription)", "Failed: \(error.localizedDescription)") }
         }
     }
 
+    /// Dialog restart bawaan macOS, yang masih menanyakan konfirmasi.
+    func restartMac() {
+        Engine.log("saran restart: swap \(fmt(swapBytes))")
+        NSAppleScript(source: "tell application \"loginwindow\" to «event aevtrrst»")?.executeAndReturnError(nil)
+    }
+
+    func showSettingsPage() {
+        if (UserDefaults.standard.string(forKey: "viewMode") ?? "sidebar") == "sidebar" { pane = .pengaturan }
+        else { showSettings = true }
+    }
+
     func emptyTrash() {
-        ask("Kosongkan Trash?", "Semua isi Trash dihapus permanen.", confirm: "Kosongkan") { [self] in
+        ask(tr("Kosongkan Trash?", "Empty the Trash?"), tr("Semua isi Trash dihapus permanen.", "Everything in the Trash is deleted permanently."), confirm: tr("Kosongkan", "Empty")) { [self] in
             var err: NSDictionary?
             NSAppleScript(source: "tell application \"Finder\" to empty trash")?.executeAndReturnError(&err)
-            result = err == nil ? "Trash dikosongkan." : "Gagal. Izinkan Lega mengontrol Finder di System Settings, Privacy & Security, Automation."
+            result = err == nil ? tr("Trash dikosongkan.", "Trash emptied.") : tr("Gagal. Izinkan Lega mengontrol Finder di System Settings, Privacy & Security, Automation.", "Failed. Allow Lega to control Finder in System Settings, Privacy & Security, Automation.")
             Engine.log("lanjutan: kosongkan trash")
             refresh()
         }
@@ -399,44 +506,44 @@ extension Model {
         var a: [AdvItem] = []
         if (adv["whatsapp"] ?? 0) > 0 {
             a.append(AdvItem(id: "whatsapp", symbol: "message", initials: "WA", title: "Media WhatsApp", size: adv["whatsapp"],
-                             note: "Rapikan lewat Settings, Storage di WhatsApp. Jangan hapus filenya langsung.",
-                             short: "Dirapikan lewat aplikasinya", button: "Buka aplikasi", prominent: true) {
+                             note: tr("Rapikan lewat Settings, Storage di WhatsApp. Jangan hapus filenya langsung.", "Tidy up in WhatsApp under Settings, Storage. Never delete its files directly."),
+                             short: tr("Dirapikan lewat aplikasinya", "Tidied up in the app itself"), button: tr("Buka aplikasi", "Open app"), prominent: true) {
                 NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/WhatsApp.app"))
             })
         }
         if (adv["claudevm"] ?? 0) > 0 {
             a.append(AdvItem(id: "claudevm", symbol: "cpu", initials: "VM", title: "VM Claude Desktop", size: adv["claudevm"],
-                             note: "Diunduh ulang kalau fitur agent dipakai lagi. Claude harus tertutup.",
-                             short: "Diunduh ulang saat dipakai", button: "Hapus") { [self] in
+                             note: tr("Diunduh ulang kalau fitur agent dipakai lagi. Claude harus tertutup.", "Downloaded again if the agent feature is used. Claude must be closed."),
+                             short: tr("Diunduh ulang saat dipakai", "Downloaded again when needed"), button: tr("Hapus", "Delete")) { [self] in
                 removeFolder("claudevm", "~/Library/Application Support/Claude/vm_bundles", blockers: ["Claude"],
-                             title: "Hapus VM Claude Desktop?",
-                             message: "Claude Desktop akan mengunduhnya ulang kalau fitur agent dipakai lagi. Penghapusan ini permanen.")
+                             title: tr("Hapus VM Claude Desktop?", "Delete the Claude Desktop VM?"),
+                             message: tr("Claude Desktop akan mengunduhnya ulang kalau fitur agent dipakai lagi. Penghapusan ini permanen.", "Claude Desktop downloads it again if the agent feature is used. This deletion is permanent."))
             })
         }
         if mauInstalled {
             a.append(AdvItem(id: "mau", symbol: "arrow.triangle.2.circlepath", initials: "MS", title: "Microsoft AutoUpdate", size: nil,
-                             note: msApps.isEmpty ? "Tidak ada aplikasi Microsoft lagi. Updater ini aman dihapus."
-                                                  : "Masih dipakai \(msApps.joined(separator: ", ")).",
-                             short: msApps.isEmpty ? "Tak ada aplikasi Microsoft" : "Masih dipakai aplikasi Microsoft",
-                             button: "Hapus", enabled: msApps.isEmpty) { [self] in removeMAU() })
+                             note: msApps.isEmpty ? tr("Tidak ada aplikasi Microsoft lagi. Updater ini aman dihapus.", "No Microsoft apps left. This updater is safe to remove.")
+                                                  : tr("Masih dipakai \(msApps.joined(separator: ", ")).", "Still used by \(msApps.joined(separator: ", "))."),
+                             short: msApps.isEmpty ? tr("Tak ada aplikasi Microsoft", "No Microsoft apps left") : tr("Masih dipakai aplikasi Microsoft", "Still used by Microsoft apps"),
+                             button: tr("Hapus", "Delete"), enabled: msApps.isEmpty) { [self] in removeMAU() })
         }
         if (adv["autorecover"] ?? 0) > 0 {
             a.append(AdvItem(id: "autorecover", symbol: "doc.badge.clock", initials: "AR", title: "AutoRecovery Office", size: adv["autorecover"],
-                             note: "Salinan darurat Word, Excel, PowerPoint yang tertinggal.",
-                             short: "Salinan darurat tertinggal", button: "Ke Trash") { [self] in cleanAutoRecover() })
+                             note: tr("Salinan darurat Word, Excel, PowerPoint yang tertinggal.", "Leftover emergency copies from Word, Excel and PowerPoint."),
+                             short: tr("Salinan darurat tertinggal", "Leftover emergency copies"), button: tr("Ke Trash", "Move to Trash")) { [self] in cleanAutoRecover() })
         }
         if (adv["playwright"] ?? 0) > 0 {
             a.append(AdvItem(id: "playwright", symbol: "theatermasks", initials: "PW", title: "Browser Playwright", size: adv["playwright"],
-                             note: "Browser uji otomatis. Diunduh ulang saat dibutuhkan.",
-                             short: "Browser uji otomatis", button: "Hapus") { [self] in
+                             note: tr("Browser uji otomatis. Diunduh ulang saat dibutuhkan.", "Browsers for automated tests. Downloaded again when needed."),
+                             short: tr("Browser uji otomatis", "Browsers for automated tests"), button: tr("Hapus", "Delete")) { [self] in
                 removeFolder("playwright", "~/Library/Caches/ms-playwright",
-                             title: "Hapus browser Playwright?",
-                             message: "Akan diunduh ulang saat playwright install dijalankan. Penghapusan ini permanen.")
+                             title: tr("Hapus browser Playwright?", "Delete the Playwright browsers?"),
+                             message: tr("Akan diunduh ulang saat playwright install dijalankan. Penghapusan ini permanen.", "They download again when playwright install runs. This deletion is permanent."))
             })
         }
         a.append(AdvItem(id: "trash", symbol: "trash", initials: "TR", title: "Trash", size: nil,
-                         note: "File di Trash baru membebaskan ruang setelah dikosongkan.",
-                         short: "Kosongkan lewat Finder", button: "Kosongkan") { [self] in emptyTrash() })
+                         note: tr("File di Trash baru membebaskan ruang setelah dikosongkan.", "Files in the Trash only free space once it is emptied."),
+                         short: tr("Kosongkan lewat Finder", "Emptied through Finder"), button: tr("Kosongkan", "Empty")) { [self] in emptyTrash() })
         return a
     }
 }
@@ -447,16 +554,18 @@ struct Ring: View {
     let fraction: Double
     let low: Bool
     var lineWidth: CGFloat = 12
+    @State private var shown = false
 
     var body: some View {
         ZStack {
             Circle().stroke(.quaternary, lineWidth: lineWidth)
             Circle()
-                .trim(from: 0, to: fraction)
+                .trim(from: 0, to: shown ? fraction : 0)
                 .stroke(low ? Color.red : accent, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(.spring(response: 0.6, dampingFraction: 0.85), value: fraction)
         }
+        .onAppear { withAnimation(.spring(response: 1.1, dampingFraction: 0.8).delay(0.15)) { shown = true } }
     }
 }
 
@@ -499,12 +608,13 @@ struct TargetIcon: View {
 /// Lingkaran berisi dua huruf, seperti di landing page.
 struct Avatar: View {
     let initials: String
+    var size: CGFloat = 32
     var body: some View {
         let hue = Double(initials.unicodeScalars.reduce(0) { $0 &* 31 &+ Int($1.value) } % 360) / 360
         Text(initials)
-            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .font(.system(size: size * 0.375, weight: .semibold, design: .rounded))
             .foregroundStyle(Color(hue: hue, saturation: 0.45, brightness: 0.45))
-            .frame(width: 32, height: 32)
+            .frame(width: size, height: size)
             .background(Circle().fill(Color(hue: hue, saturation: 0.18, brightness: 0.95)))
             .overlay(Circle().stroke(.quaternary))
     }
@@ -540,6 +650,58 @@ struct PillLabel<L: View>: View {
     }
 }
 
+/// Saran restart saat swap besar atau Mac sudah lama menyala.
+/// Logo Lega: ikon aplikasinya sendiri, plus nama.
+struct LegaMark: View {
+    var size: CGFloat = 28
+    var body: some View {
+        HStack(spacing: size * 0.35) {
+            Image(nsImage: NSApp.applicationIconImage).resizable().interpolation(.high)
+                .frame(width: size, height: size)
+            Text("Lega").font(.system(size: size * 0.62, weight: .semibold, design: .rounded))
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Lega")
+    }
+}
+
+struct RestartCard: View {
+    @EnvironmentObject var m: Model
+    var compact = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "arrow.clockwise.circle.fill")
+                .font(.system(size: compact ? 20 : 26))
+                .foregroundStyle(.orange)
+                .symbolEffect(.pulse, options: .repeating)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tr("Mac menyala \(uptimeText(m.uptime))", "Mac on for \(uptimeText(m.uptime))")).font(.callout.weight(.semibold))
+                Text(compact ? tr("Restart mengembalikan \(fmt(m.swapBytes)) swap.", "A restart frees \(fmt(m.swapBytes)) of swap.")
+                             : tr("Swap, yaitu RAM cadangan di disk, memakai \(fmt(m.swapBytes)). Restart mengembalikan ruang itu dan menyegarkan memori.", "Swap, the backup RAM on your disk, takes \(fmt(m.swapBytes)). A restart frees that space and refreshes memory."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+            if compact {
+                Button("Restart") { m.restartMac() }
+                    .buttonStyle(.link).font(.callout)
+            } else {
+                Button("Restart") { m.restartMac() }
+                    .buttonStyle(PillButtonStyle(prominent: true))
+            }
+        }
+        .padding(compact ? 10 : 14)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.1)))
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+}
+
+struct HeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
 // MARK: - Jendela utama
 
 struct MainView: View {
@@ -549,57 +711,75 @@ struct MainView: View {
 
     var body: some View {
         Group {
-            if viewMode == "sidebar" { SidebarLayout() } else { classic }
+            if viewMode == "sidebar" { SidebarLayout().frame(minWidth: 940, minHeight: 600) } else { classic }
+        }
+        .sheet(isPresented: $m.showSettings) {
+            VStack(spacing: 0) {
+                SettingsView(embedded: true)
+                HStack { Spacer(); Button(tr("Selesai", "Done")) { m.showSettings = false }.keyboardShortcut(.defaultAction) }
+                    .padding([.horizontal, .bottom], 20)
+            }
+            .frame(width: 480)
         }
         .toolbar {
             ToolbarItem {
-                Picker("Tampilan", selection: $viewMode) {
-                    Image(systemName: "sidebar.left").tag("sidebar").help("Tampilan sidebar")
-                    Image(systemName: "rectangle.grid.1x2").tag("halaman").help("Tampilan satu halaman")
+                Picker(tr("Tampilan", "Layout"), selection: $viewMode) {
+                    Image(systemName: "sidebar.left").tag("sidebar").help(tr("Tampilan sidebar", "Sidebar layout"))
+                    Image(systemName: "rectangle.grid.1x2").tag("halaman").help(tr("Tampilan satu halaman", "Single page layout"))
                 }
                 .pickerStyle(.segmented)
-                .help("Pilih tampilan")
+                .help(tr("Pilih tampilan", "Choose a layout"))
             }
             ToolbarItem {
                 Menu {
                     Picker("Mode", selection: $appearance) {
-                        Label("Ikuti sistem", systemImage: "circle.lefthalf.filled").tag("sistem")
-                        Label("Terang", systemImage: "sun.max").tag("terang")
-                        Label("Gelap", systemImage: "moon").tag("gelap")
+                        Label(tr("Ikuti sistem", "Match system"), systemImage: "circle.lefthalf.filled").tag("sistem")
+                        Label(tr("Terang", "Light"), systemImage: "sun.max").tag("terang")
+                        Label(tr("Gelap", "Dark"), systemImage: "moon").tag("gelap")
                     }
                     .pickerStyle(.inline)
                 } label: {
                     Image(systemName: appearance == "terang" ? "sun.max" : appearance == "gelap" ? "moon" : "circle.lefthalf.filled")
                 }
-                .help("Mode terang atau gelap")
+                .help(tr("Mode terang atau gelap", "Light or dark mode"))
             }
             ToolbarItem {
-                Button { m.refresh() } label: { Label("Pindai ulang", systemImage: "arrow.clockwise") }
+                Button { m.refresh() } label: { Label(tr("Pindai ulang", "Scan again"), systemImage: "arrow.clockwise") }
                     .disabled(m.scanning || m.scanningAdv || m.busy)
-                    .help("Pindai ulang")
+                    .help(tr("Pindai ulang", "Scan again"))
+            }
+            ToolbarItem {
+                Button { m.showSettingsPage() } label: { Label(tr("Pengaturan", "Settings"), systemImage: "gearshape") }
+                    .help(tr("Pengaturan", "Settings"))
             }
         }
-        .alert(m.pending?.title ?? "",
-               isPresented: Binding(get: { m.pending != nil }, set: { if !$0 { m.pending = nil } }),
-               presenting: m.pending) { p in
-            Button(p.confirm, role: .destructive) { p.action() }
-            Button("Batal", role: .cancel) {}
-        } message: { p in Text(p.message) }
     }
 
+    @State private var classicH: CGFloat = 640
+
+    /// Tampilan satu halaman: lebar tetap, tinggi jendela mengikuti isi sampai setinggi layar.
     var classic: some View {
-        ScrollView {
+        let maxH = (NSScreen.main?.visibleFrame.height ?? 900) - 60
+        return ScrollView {
             VStack(alignment: .leading, spacing: 24) {
+                LegaMark(size: 34)
                 hero
+                if m.suggestRestart { RestartCard() }
                 if let r = m.result { resultBanner(r) }
                 quickSection
                 advancedSection
                 downloadsSection
+                appsSection
             }
             .padding(28)
-            .frame(maxWidth: 760)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(GeometryReader { g in Color.clear.preference(key: HeightKey.self, value: g.size.height) })
+            .animation(.spring(response: 0.4), value: m.result)
+            .animation(.spring(response: 0.4), value: m.suggestRestart)
         }
+        .scrollBounceBehavior(.basedOnSize)
+        .onPreferenceChange(HeightKey.self) { classicH = $0 }
+        .frame(width: 760, height: min(max(classicH, 320), maxH))
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
@@ -610,7 +790,7 @@ struct MainView: View {
                 VStack(spacing: 0) {
                     Text("\(Int((m.usedFraction * 100).rounded()))%")
                         .font(.system(size: 30, weight: .semibold, design: .rounded)).monospacedDigit()
-                    Text("terpakai").font(.caption).foregroundStyle(.secondary)
+                    Text(tr("terpakai", "used")).font(.caption).foregroundStyle(.secondary)
                 }
             }
             .frame(width: 132, height: 132)
@@ -621,14 +801,15 @@ struct MainView: View {
                         .font(.system(size: 40, weight: .bold, design: .rounded)).monospacedDigit()
                         .foregroundStyle(m.isLow ? .red : .primary)
                         .contentTransition(.numericText())
-                    Text(m.isLow ? "Kosong. Di bawah 10 GB, Mac bisa melambat." : "Kosong dari \(fmt(m.total))")
+                    Text(m.isLow ? tr("Kosong. Di bawah 10 GB, Mac bisa melambat.", "Free. Under 10 GB, a Mac can slow down.") : tr("Kosong dari \(fmt(m.total))", "Free of \(fmt(m.total))"))
                         .foregroundStyle(.secondary)
                 }
                 Button { m.cleanQuick() } label: {
                     HStack(spacing: 8) {
                         if m.busy { ProgressView().controlSize(.small).tint(.white) }
-                        else { Image(systemName: "sparkles") }
-                        Text(m.busy ? "Membersihkan" : "Bersihkan \(fmt(m.quickTotal))")
+                        else { Image(systemName: "sparkles").symbolEffect(.bounce, value: m.result) }
+                        Text(m.busy ? tr("Membersihkan", "Cleaning") : tr("Bersihkan \(fmt(m.quickTotal))", "Clean \(fmt(m.quickTotal))"))
+                            .contentTransition(.numericText())
                     }
                     .font(.headline)
                     .padding(.horizontal, 18).padding(.vertical, 10)
@@ -660,14 +841,14 @@ struct MainView: View {
     var quickSection: some View {
         let visible = m.visibleQuick
         return VStack(alignment: .leading, spacing: 10) {
-            SectionTitle(text: "Pembersihan cepat")
-            Text("Cache yang dibuat ulang sendiri. Cache aplikasi yang sedang terbuka dilewati.")
+            SectionTitle(text: tr("Pembersihan cepat", "Quick clean"))
+            Text(tr("Cache yang dibuat ulang sendiri. Cache aplikasi yang sedang terbuka dilewati.", "Caches that rebuild themselves. Caches of apps that are open are skipped."))
                 .font(.callout).foregroundStyle(.secondary)
             VStack(spacing: 0) {
                 if visible.isEmpty {
                     HStack(spacing: 10) {
                         IconTile(symbol: "checkmark")
-                        Text(m.scanning ? "Memindai cache" : "Semua cache sudah bersih.")
+                        Text(m.scanning ? tr("Memindai cache", "Scanning caches") : tr("Semua cache sudah bersih.", "All caches are clean."))
                         Spacer()
                     }
                     .padding(14)
@@ -693,15 +874,15 @@ struct MainView: View {
 
     var advancedSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionTitle(text: "Opsi lanjutan")
-            Text("Data yang lebih besar. Setiap tindakan meminta konfirmasi dulu.")
+            SectionTitle(text: tr("Opsi lanjutan", "Advanced options"))
+            Text(tr("Data yang lebih besar. Setiap tindakan meminta konfirmasi dulu.", "Larger data. Every action asks you first."))
                 .font(.callout).foregroundStyle(.secondary)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                 ForEach(m.advItems) { it in
                     card(it.symbol, it.title, it.size, it.note, it.button, enabled: it.enabled, action: it.action)
                 }
                 if m.scanningAdv {
-                    HStack(spacing: 10) { ProgressView().controlSize(.small); Text("Memindai WhatsApp").foregroundStyle(.secondary) }
+                    HStack(spacing: 10) { ProgressView().controlSize(.small); Text(tr("Memindai WhatsApp", "Scanning WhatsApp")).foregroundStyle(.secondary) }
                         .padding(16)
                         .frame(maxWidth: .infinity, minHeight: 168)
                         .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
@@ -732,12 +913,31 @@ struct MainView: View {
         .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
     }
 
+    var appsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionTitle(text: tr("Aplikasi terbesar", "Largest apps"))
+            VStack(spacing: 0) {
+                if m.apps.isEmpty {
+                    Text(m.scanningAdv ? tr("Memindai Applications", "Scanning Applications") : tr("Belum ada aplikasi yang terbaca.", "No apps found yet."))
+                        .font(.callout).foregroundStyle(.secondary).padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                ForEach(Array(m.apps.enumerated()), id: \.element.id) { i, f in
+                    if i > 0 { Divider().padding(.leading, 52) }
+                    DownloadRow(item: f)
+                }
+            }
+            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
+        }
+        .disabled(m.busy)
+    }
+
     var downloadsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionTitle(text: "Item terbesar di Downloads")
+            SectionTitle(text: tr("Item terbesar di Downloads", "Largest items in Downloads"))
             VStack(spacing: 0) {
                 if m.downloads.isEmpty {
-                    Text(m.scanningAdv && m.downloads.isEmpty ? "Memindai Downloads" : "Kosong, atau Lega belum diizinkan membaca Downloads.")
+                    Text(m.scanningAdv && m.downloads.isEmpty ? tr("Memindai Downloads", "Scanning Downloads") : tr("Kosong, atau Lega belum diizinkan membaca Downloads.", "Empty, or Lega has no access to Downloads yet."))
                         .font(.callout).foregroundStyle(.secondary).padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -768,9 +968,9 @@ struct DownloadRow: View {
             Spacer()
             if hover {
                 Button { NSWorkspace.shared.activateFileViewerSelecting([item.url]) } label: { Image(systemName: "magnifyingglass") }
-                    .help("Tampilkan di Finder")
-                Button { m.trashDownload(item) } label: { Image(systemName: "trash") }
-                    .help("Pindahkan ke Trash")
+                    .help(tr("Tampilkan di Finder", "Show in Finder"))
+                Button { m.trash(item) } label: { Image(systemName: "trash") }
+                    .help(tr("Pindahkan ke Trash", "Move to Trash"))
             }
             Text(fmt(item.size)).monospacedDigit().foregroundStyle(.secondary).frame(minWidth: 70, alignment: .trailing)
         }
@@ -783,19 +983,24 @@ struct DownloadRow: View {
 
 // MARK: - Tampilan sidebar
 
-enum Pane: Hashable { case cepat, lanjutan, downloads, log }
+enum Pane: Hashable { case cepat, lanjutan, downloads, aplikasi, log, pengaturan }
 
 struct SidebarLayout: View {
     @EnvironmentObject var m: Model
-    @State private var pane: Pane? = .cepat
+    var pane: Pane? { m.pane }
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $pane) {
-                Text("Cepat").badge(m.visibleQuick.count).tag(Pane.cepat)
-                Text("Lanjutan").badge(m.advItems.count).tag(Pane.lanjutan)
-                Text("Downloads").badge(m.downloads.count).tag(Pane.downloads)
-                Text("Log").tag(Pane.log)
+            List(selection: Binding(get: { m.pane }, set: { if let v = $0 { m.pane = v } })) {
+                LegaMark(size: 26).padding(.vertical, 6).selectionDisabled()
+                Label(tr("Cepat", "Quick"), systemImage: "sparkles").badge(m.visibleQuick.count).tag(Pane.cepat)
+                Label(tr("Lanjutan", "Advanced"), systemImage: "slider.horizontal.3").badge(m.advItems.count).tag(Pane.lanjutan)
+                Label("Downloads", systemImage: "arrow.down.circle").badge(m.downloads.count).tag(Pane.downloads)
+                Label("Applications", systemImage: "square.grid.3x3").badge(m.apps.count).tag(Pane.aplikasi)
+                Label("Log", systemImage: "list.bullet.rectangle").tag(Pane.log)
+                Section {
+                    Label(tr("Pengaturan", "Settings"), systemImage: "gearshape").tag(Pane.pengaturan)
+                }
             }
             .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 240)
         } detail: {
@@ -804,7 +1009,9 @@ struct SidebarLayout: View {
                 case .cepat: QuickPane()
                 case .lanjutan: AdvancedPane()
                 case .downloads: DownloadsPane()
+                case .aplikasi: DownloadsPane(apps: true)
                 case .log: LogPane()
+                case .pengaturan: ScrollView { SettingsView(embedded: true).padding(8) }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -815,15 +1022,17 @@ struct SidebarLayout: View {
 
     var title: String {
         switch pane ?? .cepat {
-        case .cepat: "Pembersihan cepat"
-        case .lanjutan: "Opsi lanjutan"
+        case .cepat: tr("Pembersihan cepat", "Quick clean")
+        case .lanjutan: tr("Opsi lanjutan", "Advanced options")
         case .downloads: "Downloads"
+        case .aplikasi: "Applications"
         case .log: "Log"
+        case .pengaturan: tr("Pengaturan", "Settings")
         }
     }
 }
 
-/// Status pemindaian berbentuk kapsul, misalnya "Memindai".
+/// Status pemindaian berbentuk kapsul, misalnya tr("Memindai", "Scanning").
 struct ScanChip: View {
     let text: String
     var body: some View {
@@ -843,6 +1052,7 @@ struct ResultChip: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "checkmark.circle.fill").foregroundStyle(accent)
+                .symbolEffect(.bounce, value: text)
             Text(text)
             Spacer()
             Button { m.result = nil } label: { Image(systemName: "xmark") }
@@ -871,17 +1081,22 @@ struct QuickPane: View {
                             .font(.system(size: 30, weight: .bold, design: .rounded)).monospacedDigit()
                             .foregroundStyle(m.isLow ? .red : .primary)
                             .contentTransition(.numericText())
-                        Text(m.isLow ? "Kosong. Di bawah 10 GB, Mac bisa melambat." : "kosong dari \(fmt(m.total))")
+                        Text(m.isLow ? tr("Kosong. Di bawah 10 GB, Mac bisa melambat.", "Free. Under 10 GB, a Mac can slow down.") : tr("kosong dari \(fmt(m.total))", "free of \(fmt(m.total))"))
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    Spacer(minLength: 0)
+                    .layoutPriority(0)
+                    Spacer(minLength: 8)
                     Button { m.cleanQuick() } label: {
                         HStack(spacing: 8) {
-                            if m.busy { ProgressView().controlSize(.small).tint(.white) } else { Image(systemName: "sparkles") }
-                            Text(m.busy ? "Membersihkan" : "Bersihkan \(fmt(m.quickTotal))")
+                            if m.busy { ProgressView().controlSize(.small).tint(.white) }
+                            else { Image(systemName: "sparkles").symbolEffect(.bounce, value: m.result) }
+                            Text(m.busy ? tr("Membersihkan", "Cleaning") : tr("Bersihkan \(fmt(m.quickTotal))", "Clean \(fmt(m.quickTotal))"))
+                                .contentTransition(.numericText())
                         }
                         .font(.headline)
                         .padding(.horizontal, 16).padding(.vertical, 8)
+                        .fixedSize()
                     }
                     .buttonStyle(.borderedProminent).tint(accent).clipShape(Capsule())
                     .disabled(m.busy || m.scanning || m.quickTotal == 0)
@@ -890,12 +1105,13 @@ struct QuickPane: View {
                 .background(RoundedRectangle(cornerRadius: 16).fill(Color(nsColor: .controlBackgroundColor)))
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.08)))
 
-                if let r = m.result { ResultChip(text: r) }
-                if m.scanning { ScanChip(text: "Memindai cache") }
+                if m.suggestRestart { RestartCard() }
+                if let r = m.result { ResultChip(text: r).transition(.scale(scale: 0.96).combined(with: .opacity)) }
+                if m.scanning { ScanChip(text: tr("Memindai cache", "Scanning caches")).transition(.opacity) }
 
                 VStack(spacing: 0) {
                     if m.visibleQuick.isEmpty && !m.scanning {
-                        Text("Semua cache sudah bersih.").foregroundStyle(.secondary)
+                        Text(tr("Semua cache sudah bersih.", "All caches are clean.")).foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(16)
                     }
                     ForEach(Array(m.visibleQuick.enumerated()), id: \.element.id) { i, t in
@@ -911,13 +1127,17 @@ struct QuickPane: View {
                             Text(fmt(m.sizes[t.id] ?? 0)).monospacedDigit().foregroundStyle(.secondary)
                         }
                         .padding(.horizontal, 16).padding(.vertical, 12)
+                        .transition(.move(edge: .leading).combined(with: .opacity))
                     }
                 }
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.08)))
-                Text("Cache yang dibuat ulang sendiri. Cache aplikasi yang sedang terbuka dilewati.")
+                .animation(.spring(response: 0.45, dampingFraction: 0.85), value: m.visibleQuick.map(\.id))
+                Text(tr("Cache yang dibuat ulang sendiri. Cache aplikasi yang sedang terbuka dilewati.", "Caches that rebuild themselves. Caches of apps that are open are skipped."))
                     .font(.callout).foregroundStyle(.secondary)
             }
             .padding(24)
+            .animation(.spring(response: 0.4), value: m.result)
+            .animation(.spring(response: 0.4), value: m.scanning)
         }
     }
 }
@@ -929,7 +1149,7 @@ struct AdvancedPane: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let r = m.result { ResultChip(text: r) }
-                if m.scanningAdv { ScanChip(text: "Memindai data besar") }
+                if m.scanningAdv { ScanChip(text: tr("Memindai data besar", "Scanning large data")) }
                 VStack(spacing: 0) {
                     ForEach(Array(m.advItems.enumerated()), id: \.element.id) { i, it in
                         if i > 0 { Divider() }
@@ -950,7 +1170,7 @@ struct AdvancedPane: View {
                     }
                 }
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.08)))
-                Text("Setiap tindakan meminta konfirmasi dulu.").font(.callout).foregroundStyle(.secondary)
+                Text(tr("Setiap tindakan meminta konfirmasi dulu.", "Every action asks you first.")).font(.callout).foregroundStyle(.secondary)
             }
             .padding(24)
         }
@@ -959,20 +1179,46 @@ struct AdvancedPane: View {
 
 struct DownloadsPane: View {
     @EnvironmentObject var m: Model
+    var apps = false
+    @AppStorage("downloadsLayout") private var layout = "grid"
+    var items: [FileItem] { apps ? m.apps : m.downloads }
+    var emptyText: String { apps ? tr("Belum ada aplikasi yang terbaca.", "No apps found yet.") : tr("Kosong, atau Lega belum diizinkan membaca Downloads.", "Empty, or Lega has no access to Downloads yet.") }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                if let r = m.result { ResultChip(text: r) }
-                if m.scanningAdv && m.downloads.isEmpty { ScanChip(text: "Memindai Downloads") }
-                if m.downloads.isEmpty && !m.scanningAdv {
-                    Text("Kosong, atau Lega belum diizinkan membaca Downloads.").foregroundStyle(.secondary)
+                HStack {
+                    Text(apps ? tr("\(items.count) aplikasi terbesar", "\(items.count) largest apps") : tr("\(items.count) item terbesar", "\(items.count) largest items")).foregroundStyle(.secondary)
+                    Spacer()
+                    Picker(tr("Susunan", "Arrangement"), selection: $layout) {
+                        Image(systemName: "square.grid.2x2").tag("grid").help("Grid")
+                        Image(systemName: "list.bullet").tag("list").help("List")
+                    }
+                    .pickerStyle(.segmented).labelsHidden().fixedSize()
                 }
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 14)], spacing: 14) {
-                    ForEach(m.downloads) { FileTile(item: $0) }
+                if let r = m.result { ResultChip(text: r) }
+                if m.scanningAdv && items.isEmpty { ScanChip(text: apps ? tr("Memindai Applications", "Scanning Applications") : tr("Memindai Downloads", "Scanning Downloads")) }
+                if items.isEmpty && !m.scanningAdv {
+                    Text(emptyText).foregroundStyle(.secondary)
+                }
+                if layout == "grid" {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 14)], spacing: 14) {
+                        ForEach(items) { FileTile(item: $0) }
+                    }
+                    .transition(.opacity)
+                } else if !items.isEmpty {
+                    VStack(spacing: 0) {
+                        ForEach(Array(items.enumerated()), id: \.element.id) { i, f in
+                            if i > 0 { Divider() }
+                            DownloadRow(item: f).padding(.vertical, 4)
+                        }
+                    }
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.08)))
+                    .transition(.opacity)
                 }
             }
             .padding(24)
+            .animation(.easeInOut(duration: 0.2), value: layout)
         }
     }
 }
@@ -1003,9 +1249,9 @@ struct FileTile: View {
             if hover {
                 HStack(spacing: 2) {
                     Button { NSWorkspace.shared.activateFileViewerSelecting([item.url]) } label: { Image(systemName: "magnifyingglass") }
-                        .help("Tampilkan di Finder")
-                    Button { m.trashDownload(item) } label: { Image(systemName: "trash") }
-                        .help("Pindahkan ke Trash")
+                        .help(tr("Tampilkan di Finder", "Show in Finder"))
+                    Button { m.trash(item) } label: { Image(systemName: "trash") }
+                        .help(tr("Pindahkan ke Trash", "Move to Trash"))
                 }
                 .buttonStyle(.borderless).padding(6)
             }
@@ -1015,8 +1261,8 @@ struct FileTile: View {
         .contentShape(Rectangle())
         .onHover { hover = $0 }
         .contextMenu {
-            Button("Tampilkan di Finder") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
-            Button("Pindahkan ke Trash") { m.trashDownload(item) }
+            Button(tr("Tampilkan di Finder", "Show in Finder")) { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
+            Button(tr("Pindahkan ke Trash", "Move to Trash")) { m.trash(item) }
         }
         .help(item.url.lastPathComponent)
         .disabled(m.busy)
@@ -1029,7 +1275,7 @@ struct LogPane: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 6) {
-                if lines.isEmpty { Text("Belum ada catatan pembersihan.").foregroundStyle(.secondary) }
+                if lines.isEmpty { Text(tr("Belum ada catatan pembersihan.", "No cleanups logged yet.")).foregroundStyle(.secondary) }
                 ForEach(Array(lines.enumerated()), id: \.offset) { _, l in
                     Text(l).font(.system(.callout, design: .monospaced)).textSelection(.enabled)
                 }
@@ -1053,72 +1299,122 @@ struct MenuBarPanel: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
+            LegaMark(size: 22)
             HStack(spacing: 14) {
                 Ring(fraction: m.usedFraction, low: m.isLow, lineWidth: 6).frame(width: 44, height: 44)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(fmt(m.free)).font(.system(size: 20, weight: .bold, design: .rounded)).monospacedDigit()
                         .foregroundStyle(m.isLow ? .red : .primary)
-                    Text("kosong dari \(fmt(m.total))").font(.caption).foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
+                    Text(tr("kosong dari \(fmt(m.total))", "free of \(fmt(m.total))")).font(.caption).foregroundStyle(.secondary)
                 }
             }
+            if m.suggestRestart { RestartCard(compact: true) }
             Button { m.cleanQuick() } label: {
                 HStack {
-                    if m.busy { ProgressView().controlSize(.small) } else { Image(systemName: "sparkles") }
-                    Text(m.busy ? "Membersihkan" : "Bersihkan \(fmt(m.quickTotal))")
+                    if m.busy { ProgressView().controlSize(.small) }
+                    else { Image(systemName: "sparkles").symbolEffect(.bounce, value: m.result) }
+                    Text(m.busy ? tr("Membersihkan", "Cleaning") : tr("Bersihkan \(fmt(m.quickTotal))", "Clean \(fmt(m.quickTotal))"))
                 }
-                .frame(maxWidth: .infinity)
+                .font(.system(size: 15, weight: .semibold))
+                .frame(maxWidth: .infinity, minHeight: 40)
             }
-            .buttonStyle(.borderedProminent).tint(accent).controlSize(.large)
+            .buttonStyle(.borderedProminent).tint(accent).controlSize(.extraLarge)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
             .disabled(m.busy || m.scanning || m.quickTotal == 0)
             if let r = m.result { Text(r).font(.caption).foregroundStyle(.secondary) }
+
             Divider()
-            HStack {
-                Button("Opsi lanjutan") {
-                    openWindow(id: "main")
-                    NSApp.activate(ignoringOtherApps: true)
+            Text(tr("Opsi lanjutan", "Advanced options")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            ForEach(m.advItems.prefix(5)) { it in
+                HStack(spacing: 10) {
+                    Avatar(initials: it.initials, size: 26)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(it.title).font(.callout).lineLimit(1)
+                        if let s = it.size { Text(fmt(s)).font(.caption).foregroundStyle(.secondary).monospacedDigit() }
+                    }
+                    Spacer(minLength: 6)
+                    Button(it.button, action: it.action)
+                        .buttonStyle(PillButtonStyle(prominent: it.prominent))
+                        .disabled(!it.enabled || m.busy)
                 }
-                Spacer()
-                SettingsLink { Image(systemName: "gearshape") }.help("Pengaturan")
-                Button { NSApp.terminate(nil) } label: { Image(systemName: "power") }.help("Keluar")
+                .help(it.note)
             }
-            .buttonStyle(.borderless)
+
+            Divider()
+            HStack(spacing: 8) {
+                Button { open(nil) } label: { Label(tr("Buka Lega", "Open Lega"), systemImage: "macwindow") }
+                    .buttonStyle(.bordered)
+                Spacer()
+                Button { open(.pengaturan) } label: { Image(systemName: "gearshape") }
+                    .buttonStyle(.borderless).help(tr("Pengaturan", "Settings"))
+                Button { NSApp.terminate(nil) } label: { Image(systemName: "power") }
+                    .buttonStyle(.borderless).help(tr("Keluar", "Quit"))
+            }
         }
         .padding(16)
-        .frame(width: 280)
+        .frame(width: 320)
+        .animation(.spring(response: 0.4), value: m.result)
+    }
+
+    /// Membuka jendela utama, opsional langsung ke halaman tertentu.
+    func open(_ pane: Pane?) {
+        openWindow(id: "main")
+        NSApp.activate(ignoringOtherApps: true)
+        if pane == .pengaturan { m.showSettingsPage() } else if let p = pane { m.pane = p }
+    }
+}
+
+struct SettingsCommand: View {
+    @Environment(\.openWindow) private var openWindow
+    let m: Model
+    var body: some View {
+        Button(tr("Pengaturan…", "Settings…")) {
+            openWindow(id: "main")
+            NSApp.activate(ignoringOtherApps: true)
+            m.showSettingsPage()
+        }
+        .keyboardShortcut(",", modifiers: .command)
     }
 }
 
 // MARK: - Pengaturan
 
 struct SettingsView: View {
+    var embedded = false
     @AppStorage("showMenuBar") private var showMenuBar = true
     @AppStorage("viewMode") private var viewMode = "sidebar"
     @AppStorage("appearance") private var appearance = "sistem"
+    @AppStorage("language") private var language = "en"
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
 
     var body: some View {
         Form {
-            Picker("Tampilan", selection: $viewMode) {
+            Picker("Language / Bahasa", selection: $language) {
+                Text("English").tag("en")
+                Text("Bahasa Indonesia").tag("id")
+            }
+            Picker(tr("Tampilan", "Layout"), selection: $viewMode) {
                 Text("Sidebar").tag("sidebar")
-                Text("Satu halaman").tag("halaman")
+                Text(tr("Satu halaman", "Single page")).tag("halaman")
             }
             Picker("Mode", selection: $appearance) {
-                Text("Ikuti sistem").tag("sistem")
-                Text("Terang").tag("terang")
-                Text("Gelap").tag("gelap")
+                Text(tr("Ikuti sistem", "Match system")).tag("sistem")
+                Text(tr("Terang", "Light")).tag("terang")
+                Text(tr("Gelap", "Dark")).tag("gelap")
             }
-            Toggle("Buka saat Mac menyala", isOn: $launchAtLogin)
+            Toggle(tr("Buka saat Mac menyala", "Open at login"), isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, on in setLogin(on) }
-            Toggle("Tampilkan di menu bar", isOn: $showMenuBar)
+            Toggle(tr("Tampilkan di menu bar", "Show in menu bar"), isOn: $showMenuBar)
             if let e = loginError { Text(e).font(.caption).foregroundStyle(.red) }
-            Text("Kalau keduanya aktif, Lega berjalan diam-diam di menu bar setiap Mac menyala.")
+            Text(tr("Kalau keduanya aktif, Lega berjalan diam-diam di menu bar setiap Mac menyala.", "With both on, Lega runs quietly in the menu bar every time your Mac starts."))
                 .font(.caption).foregroundStyle(.secondary)
         }
         .formStyle(.grouped)
-        .frame(width: 420)
-        .preferredColorScheme(scheme(appearance))
+        .scrollDisabled(true)
+        .frame(maxWidth: 560, alignment: .leading)
     }
 
     func setLogin(_ on: Bool) {
@@ -1126,7 +1422,7 @@ struct SettingsView: View {
             if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
             loginError = nil
         } catch {
-            loginError = "Gagal mengubah login item: \(error.localizedDescription)"
+            loginError = tr("Gagal mengubah login item: \(error.localizedDescription)", "Could not change the login item: \(error.localizedDescription)")
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
     }
@@ -1156,6 +1452,7 @@ struct LegaApp: App {
     @AppStorage("showMenuBar") private var showMenuBar = true
     @AppStorage("didSetupLogin") private var didSetupLogin = false
     @AppStorage("appearance") private var appearance = "sistem"
+    @AppStorage("language") private var language = "en"
 
     init() {
         // Peluncuran pertama: daftarkan sebagai login item, sesuai default produk
@@ -1167,22 +1464,22 @@ struct LegaApp: App {
 
     var body: some Scene {
         Window("Lega", id: "main") {
-            MainView().environmentObject(m).frame(minWidth: 760, minHeight: 600)
+            MainView().environmentObject(m)
+                .id(language)   // bangun ulang semua teks saat bahasa diganti
                 .preferredColorScheme(scheme(appearance))
                 .onAppear { NSApp.setActivationPolicy(.regular); NSApp.activate(ignoringOtherApps: true) }
         }
-        .windowResizability(.contentMinSize)
+        .windowResizability(.contentSize)
+        .commands { CommandGroup(replacing: .appSettings) { SettingsCommand(m: m) } }
         // Saat menu bar aktif dan Mac baru menyala, jendela tidak ikut muncul
         .defaultLaunchBehavior(showMenuBar && wasLaunchedAtLogin ? .suppressed : .presented)
 
         MenuBarExtra(isInserted: $showMenuBar) {
-            MenuBarPanel().environmentObject(m).preferredColorScheme(scheme(appearance))
+            MenuBarPanel().environmentObject(m).id(language).preferredColorScheme(scheme(appearance))
         } label: {
-            Image(systemName: "sparkles")
+            Image(systemName: m.busy ? "sparkles.rectangle.stack" : "sparkles")
         }
         .menuBarExtraStyle(.window)
-
-        Settings { SettingsView() }
     }
 
     var wasLaunchedAtLogin: Bool {

@@ -17,9 +17,12 @@ Buka DMG, lalu seret Lega ke Applications. Lega belum ditandatangani Developer I
 
 ## Fitur
 
-- **Pembersihan cepat, satu tombol.** Cache browser, Zoom, Homebrew, npm, pip, uv, Go, node-gyp, unduhan update yang tertunda, dan versi lama Codex.
+- **Pembersihan cepat, satu tombol.** Cache browser (termasuk Service Worker Arc, Chrome, dan Comet), Zoom, Homebrew, npm, pip, uv, Go, node-gyp, cache compiler Clang dan Swift, unduhan update yang tertunda, dan versi lama Codex.
 - **Aman untuk aplikasi yang sedang terbuka.** Cache milik aplikasi yang masih berjalan dilewati, jadi Anda tidak perlu restart Mac.
 - **Opsi lanjutan dengan konfirmasi.** Media WhatsApp, VM Claude Desktop, file AutoRecovery Office, browser Playwright, Trash, Microsoft AutoUpdate yang sudah yatim, dan item terbesar di Downloads.
+- **Applications terbesar.** Dua belas aplikasi terbesar, bisa dipindah ke Trash dengan konfirmasi.
+- **Saran restart.** Muncul saat swap di disk melewati 2 GB atau Mac sudah menyala tiga hari.
+- **English dan Bahasa Indonesia.** English sebagai default, bisa diganti di Pengaturan.
 - **Dua tampilan.** Sidebar atau satu halaman, dengan mode terang, gelap, atau ikuti sistem.
 - **Menu bar.** Lihat ruang kosong dan bersihkan cache tanpa membuka jendela.
 - **Berjalan saat Mac menyala.** Bisa dimatikan di Pengaturan.
