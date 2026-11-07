@@ -1,4 +1,4 @@
-// Bersih Storage: pembersih storage Mac satu tombol.
+// Lega: pembersih storage Mac satu tombol.
 // Pembersihan cepat hanya menyentuh cache yang akan dibuat ulang sendiri.
 // Opsi lanjutan menyentuh data yang lebih besar, dan selalu meminta konfirmasi.
 // Lisensi MIT. Lihat LICENSE.
@@ -170,7 +170,7 @@ enum Engine {
                 + "'/Applications/Microsoft Defender Shim.app'",
             "rmdir '/Library/Application Support/Microsoft'",
         ].map { $0 + " 2>/dev/null" }.joined(separator: "; ") + "; true"
-        let script = "do shell script \"\(root)\" with prompt \"Bersih Storage ingin menghapus Microsoft AutoUpdate.\" with administrator privileges"
+        let script = "do shell script \"\(root)\" with prompt \"Lega ingin menghapus Microsoft AutoUpdate.\" with administrator privileges"
         let r = shell("/usr/bin/osascript", ["-e", script])
         for p in ["~/Library/Preferences/com.microsoft.autoupdate2.plist", "~/Library/Caches/com.microsoft.autoupdate2",
                   "~/Library/Application Support/Microsoft AU Daemon"] {
@@ -192,7 +192,7 @@ enum Engine {
     }
 
     static func log(_ line: String) {
-        let f = url("~/Library/Logs/BersihStorage.log")
+        let f = url("~/Library/Logs/Lega.log")
         let stamp = ISO8601DateFormatter().string(from: Date())
         let data = Data("\(stamp) \(line)\n".utf8)
         if let h = try? FileHandle(forWritingTo: f) {
@@ -362,7 +362,7 @@ final class Model: ObservableObject {
         ask("Kosongkan Trash?", "Semua isi Trash dihapus permanen.", confirm: "Kosongkan") { [self] in
             var err: NSDictionary?
             NSAppleScript(source: "tell application \"Finder\" to empty trash")?.executeAndReturnError(&err)
-            result = err == nil ? "Trash dikosongkan." : "Gagal. Izinkan Bersih Storage mengontrol Finder di System Settings, Privacy & Security, Automation."
+            result = err == nil ? "Trash dikosongkan." : "Gagal. Izinkan Lega mengontrol Finder di System Settings, Privacy & Security, Automation."
             Engine.log("lanjutan: kosongkan trash")
             refresh()
         }
@@ -606,7 +606,7 @@ struct MainView: View {
             SectionTitle(text: "Item terbesar di Downloads")
             VStack(spacing: 0) {
                 if m.downloads.isEmpty {
-                    Text(m.scanningAdv && m.downloads.isEmpty ? "Memindai Downloads" : "Kosong, atau Bersih Storage belum diizinkan membaca Downloads.")
+                    Text(m.scanningAdv && m.downloads.isEmpty ? "Memindai Downloads" : "Kosong, atau Lega belum diizinkan membaca Downloads.")
                         .font(.callout).foregroundStyle(.secondary).padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -706,7 +706,7 @@ struct SettingsView: View {
                 .onChange(of: launchAtLogin) { _, on in setLogin(on) }
             Toggle("Tampilkan di menu bar", isOn: $showMenuBar)
             if let e = loginError { Text(e).font(.caption).foregroundStyle(.red) }
-            Text("Kalau keduanya aktif, Bersih Storage berjalan diam-diam di menu bar setiap Mac menyala.")
+            Text("Kalau keduanya aktif, Lega berjalan diam-diam di menu bar setiap Mac menyala.")
                 .font(.caption).foregroundStyle(.secondary)
         }
         .formStyle(.grouped)
@@ -727,7 +727,7 @@ struct SettingsView: View {
 // MARK: - App
 
 @main
-struct BersihStorageApp: App {
+struct LegaApp: App {
     @StateObject var m = Model()
     @AppStorage("showMenuBar") private var showMenuBar = true
     @AppStorage("didSetupLogin") private var didSetupLogin = false
@@ -741,7 +741,7 @@ struct BersihStorageApp: App {
     }
 
     var body: some Scene {
-        Window("Bersih Storage", id: "main") {
+        Window("Lega", id: "main") {
             MainView().environmentObject(m).frame(minWidth: 640, minHeight: 640)
         }
         .windowResizability(.contentMinSize)

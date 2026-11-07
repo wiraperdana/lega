@@ -1,6 +1,6 @@
-# Bersih Storage
+# Lega
 
-Pembersih storage Mac dengan satu tombol. Bersih Storage menghapus cache yang akan dibuat ulang sendiri, lalu menampilkan data besar lain yang bisa Anda bereskan dengan konfirmasi.
+Pembersih storage Mac dengan satu tombol. Lega menghapus cache yang akan dibuat ulang sendiri, lalu menampilkan data besar lain yang bisa Anda bereskan dengan konfirmasi.
 
 *A one-button storage cleaner for macOS. It removes caches that rebuild themselves, then lists larger items you can clean up after confirming. The interface is in Indonesian.*
 
@@ -13,13 +13,13 @@ Produk open source dari [InnovationKit](https://github.com/wiraperdana), dirilis
 - **Opsi lanjutan dengan konfirmasi.** Media WhatsApp, VM Claude Desktop, file AutoRecovery Office, browser Playwright, Trash, Microsoft AutoUpdate yang sudah yatim, dan item terbesar di Downloads.
 - **Menu bar.** Lihat ruang kosong dan bersihkan cache tanpa membuka jendela.
 - **Berjalan saat Mac menyala.** Bisa dimatikan di Pengaturan.
-- **Tercatat.** Setiap pembersihan ditulis ke `~/Library/Logs/BersihStorage.log`.
+- **Tercatat.** Setiap pembersihan ditulis ke `~/Library/Logs/Lega.log`.
 
 ## Prinsip keamanan
 
 1. Yang dihapus permanen hanya cache yang dibuat ulang sendiri, dan data yang memang bisa diunduh ulang.
 2. File milik Anda, seperti isi Downloads dan AutoRecovery, dipindah ke Trash, jadi masih bisa dikembalikan.
-3. Data aplikasi yang punya database sendiri, seperti WhatsApp, tidak pernah dihapus langsung. Bersih Storage hanya membuka aplikasinya.
+3. Data aplikasi yang punya database sendiri, seperti WhatsApp, tidak pernah dihapus langsung. Lega hanya membuka aplikasinya.
 4. Microsoft AutoUpdate hanya bisa dihapus kalau tidak ada lagi aplikasi Microsoft yang terpasang.
 
 ## Kebutuhan
@@ -31,8 +31,8 @@ Produk open source dari [InnovationKit](https://github.com/wiraperdana), dirilis
 ## Build dan pasang
 
 ```bash
-git clone https://github.com/wiraperdana/bersih-storage.git
-cd bersih-storage
+git clone https://github.com/wiraperdana/lega.git
+cd lega
 ./build.sh
 ```
 
