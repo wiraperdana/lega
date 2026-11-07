@@ -40,7 +40,7 @@
   @media (prefers-reduced-motion: reduce) { .dmg__app { animation: none; } }
   .footer__col h4 { margin: 0 0 var(--s-3); font: 600 12px/1.4 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
   #download.bg-band { --action: var(--p-action); --action-ink: var(--p-action-ink); }
-  #pernyataan .mo-la__sub { color: color-mix(in oklab, var(--ink) 78%, transparent); opacity: 1; }
+  #pernyataan .statement__sub { color: color-mix(in oklab, var(--ink) 78%, transparent); opacity: 1; }
   .mb { font: 400 12px/1.35 var(--font-text); color: var(--ink); }
   .mb__bar { display: flex; justify-content: flex-end; align-items: center; gap: 12px; height: 26px; padding: 0 12px; border-radius: 8px 8px 0 0; background: color-mix(in oklab, var(--surface) 70%, transparent); font-size: 11px; }
   .mb__icon { display: grid; place-items: center; width: 24px; height: 20px; border-radius: 5px; background: color-mix(in oklab, var(--ink) 14%, transparent); }
@@ -76,6 +76,35 @@
   .demo-pause.is-paused .i-pause { display: none; }
   .demo-pause.is-paused .i-play { display: block; }
   .no-demo .demo-pause { display: none; }
+  /* "exhale": cramped letters and file crumbs, then the line breathes out and the crumbs leave */
+  #pernyataan-h { font-family: var(--font-display); font-weight: 700; font-size: clamp(56px, 12.5vw, 208px); line-height: 0.98; letter-spacing: -0.04em; margin: 0; max-width: 13ch; text-wrap: balance; }
+  #pernyataan .statement__sub { margin-top: var(--s-6); max-width: 52ch; font-size: var(--t-lead); line-height: 1.5; }
+  .exhale { position: relative; }
+  .exhale .ex-w { display: inline-block; white-space: nowrap; }
+  .exhale .ex-c { display: inline-block; will-change: transform; }
+  .exhale .ex-crumb { position: absolute; left: 0; top: 0; width: .34em; height: .42em; border-radius: .06em; background: color-mix(in oklab, var(--ink) 22%, transparent); pointer-events: none; z-index: -1; }
+  .exhale .ex-crumb:nth-child(3n) { background: color-mix(in oklab, #e5484d 35%, transparent); }
+  /* hero: a soft sage floor, a free-space meter that the demo empties, and rings that breathe out from it */
+  .hero { position: relative; isolation: isolate; overflow: clip; background: linear-gradient(180deg, transparent 35%, color-mix(in oklab, var(--ground-bg, #e3ebe2) 55%, transparent) 100%); }
+  .hero-meter { position: relative; margin-top: var(--s-6); max-width: 460px; padding: 22px 24px 20px; border-radius: 20px; background: color-mix(in oklab, #fff 88%, transparent); border: 1px solid var(--line); box-shadow: 0 18px 50px rgb(20 40 30 / .08); }
+  .hm-top { display: flex; align-items: baseline; gap: 10px; }
+  .hm-top b { font: 700 40px/1 var(--font-display); letter-spacing: -0.03em; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .hm-top span { color: var(--muted); font-size: 15px; }
+  .hm-bar { --f: .3657; display: flex; height: 12px; margin: 16px 0 12px; border-radius: 999px; overflow: hidden; background: color-mix(in oklab, var(--ink) 8%, transparent); }
+  .hm-bar i { display: block; height: 100%; }
+  .hm-free { width: calc(var(--f) * 100%); background: var(--accent); }
+  .hm-junk { width: calc((1 - var(--f)) * 100%); background: repeating-linear-gradient(135deg, #e5484d 0 6px, #ec6a6e 6px 12px); }
+  .hm-legend { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 14px; color: var(--muted); }
+  .hm-legend b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .hm-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
+  .hm-dot--free { background: var(--accent); } .hm-dot--junk { background: #e5484d; }
+  .hm-rings { position: absolute; left: 70px; top: 30px; width: 0; height: 0; z-index: -1; pointer-events: none; }
+  .hm-rings i { position: absolute; left: -150px; top: -150px; width: 300px; height: 300px; border-radius: 50%; border: 1.5px solid color-mix(in oklab, var(--accent) 45%, transparent); opacity: 0; animation: hm-breathe 7.5s cubic-bezier(.2,.6,.2,1) infinite; }
+  .hm-rings i:nth-child(2) { animation-delay: 2.5s; } .hm-rings i:nth-child(3) { animation-delay: 5s; }
+  @keyframes hm-breathe { 0% { transform: scale(.35); opacity: 0; } 14% { opacity: .45; } 100% { transform: scale(4.4); opacity: 0; } }
+  .rings-paused .hm-rings i { animation-play-state: paused; }
+  @media (prefers-reduced-motion: reduce) { .hm-rings i { animation: none; opacity: .35; } .hm-rings i:nth-child(1) { transform: scale(1.2); } .hm-rings i:nth-child(2) { transform: scale(2.2); } .hm-rings i:nth-child(3) { transform: scale(3.2); } }
+  @media (max-width: 1023px) { .hero-meter { display: none; } }
 </style>
 <link rel="stylesheet" href="assets/layout/demo.css">
 <link rel="stylesheet" href="assets/ui/base.css">
@@ -85,8 +114,7 @@
 <link rel="stylesheet" href="assets/ui/checklist/fragment.css">
 <link rel="stylesheet" href="assets/diagrams/diagram.css">
 <script src="assets/backgrounds/backgrounds.js"></script>
-<script>document.documentElement.classList.add('mo-js');setTimeout(()=>document.documentElement.classList.add('mo-safe'),2500)</script>
-<link rel="modulepreload" href="assets/moments/moments.js"><link rel="modulepreload" href="assets/moments/lib.js"><link rel="modulepreload" href="assets/moments/letters-assemble/moment.js">
+
 <style>
   /* logo: the app's own icon */
   .nav__logo img { width: 28px; height: 28px; border-radius: 7px; flex: none; }
@@ -194,18 +222,24 @@
   <section class="hero hero--collage" aria-labelledby="hero-h">
     <div class="wrap"><div class="hero-text grid hero__grid">
       <div class="hero__text span-6">
-        <h1 id="hero-h">Free up Mac storage with one button</h1>
+        <h1 id="hero-h" class="exhale" data-exhale="load">Free up Mac storage with one button</h1>
         <p class="hero__lead">Lega clears out the leftover files your apps quietly pile up, leaves the apps you are using alone, and always asks before it touches anything big. Free.</p>
         <div class="btn-row"><a class="btn btn--primary" href="#download">Download free<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a></div>
         <p class="hero__proof">For macOS 15 and later, Apple Silicon and Intel.</p>
+        <div class="hero-meter" data-meter aria-hidden="true">
+          <div class="hm-rings"><i></i><i></i><i></i></div>
+          <div class="hm-top"><b data-meter-free>6.6 GB</b><span>free on this Mac</span></div>
+          <div class="hm-bar" style="--f:0.3657"><i class="hm-free"></i><i class="hm-junk"></i></div>
+          <div class="hm-legend"><span><i class="hm-dot hm-dot--free"></i>Free space</span><span><i class="hm-dot hm-dot--junk"></i><b data-meter-junk>11.45 GB</b> leftover files</span></div>
+        </div>
       </div>
-      <div class="hero__art span-6 start-7" data-fx="grain-gradient" data-fx-seed="7" role="img" aria-label="The Lega window with seven caches, and a cleanup result card of 10.9 GB">
+      <div class="hero__art span-6 start-7" data-fx="grain-gradient" data-fx-seed="7" role="img" aria-label="The Lega window with seven caches, and a cleanup result card of 11.45 GB">
         <div class="ly-piece ly-piece--main d-win" aria-hidden="true">
           <div class="d-win__bar"><span class="d-win__dots"><i></i><i></i><i></i></span><span>Lega</span></div>
           <div class="d-win__body">
             <div class="d-side">
               <span class="is-on"><i></i>Quick</span><span><i></i>Advanced</span><span><i></i>Downloads</span><span><i></i>Log</span>
-              <span class="d-side__label">Free space</span><span><i></i><b class="d-free" data-free>8.7 GB</b></span>
+              <span class="d-side__label">Free space</span><span><i></i><b class="d-free" data-free>6.6 GB</b></span>
             </div>
             <div class="d-main">
               <div class="d-main__head"><h4>Quick clean</h4><span class="d-btn">Clean</span></div>
@@ -225,7 +259,7 @@
           <div class="d-card__row"><h5>Quick clean</h5><span class="d-chip">Done</span></div>
           <div class="d-note__line"><i class="warn">!</i><span><b>Comet</b> skipped, open now</span></div>
           <div class="d-note__line"><i>✓</i><span><b>6 cache</b> deleted</span></div>
-          <div class="d-note__line"><i>✓</i><span><b>10.9 GB</b> freed</span></div>
+          <div class="d-note__line"><i>✓</i><span><b>11.45 GB</b> freed</span></div>
         </div>
         <span class="d-cursor" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 3l14 8.2-6.3 1.4L9.6 19z"/></svg></span>
         <button class="demo-pause" type="button" aria-label="Pause the demo" data-demo-pause><svg viewBox="0 0 16 16" aria-hidden="true"><path class="i-pause" d="M5 3.5v9M11 3.5v9"/><path class="i-play" d="M5.5 3.5l7 4.5-7 4.5z"/></svg></button>
@@ -294,10 +328,10 @@
     </div>
   </section>
 
-  <section class="section statement" id="pernyataan" aria-labelledby="pernyataan-h" data-moment="letters-assemble" data-moment-opts='{"spread": 1}'>
+  <section class="section statement" id="pernyataan" aria-labelledby="pernyataan-h">
     <div class="wrap">
-      <h2 id="pernyataan-h" class="mo-la__type">One button, room to breathe.</h2>
-      <p class="mo-la__sub">Lega looks in the eleven places where clutter usually hides, works around the apps you have open, and keeps a record of everything it clears.</p>
+      <h2 id="pernyataan-h" class="exhale" data-exhale="view">One button, room to breathe.</h2>
+      <p class="statement__sub">Lega looks in the eleven places where clutter usually hides, works around the apps you have open, and keeps a record of everything it clears.</p>
     </div>
   </section>
 
@@ -392,7 +426,7 @@
             <a class="btn btn--primary" href="download/Lega-1.0.0-AppleSilicon.dmg" download>Download for Apple Silicon</a>
             <a class="btn btn--secondary" href="download/Lega-1.0.0-Intel.dmg" download>Download for Intel</a>
           </div>
-          <p class="dl-meta">Version 1.0.0, 2.3 MB DMG, macOS 15 and later. Your Mac's chip is listed under the Apple menu, About This Mac.</p>
+          <p class="dl-meta">Version 1.0.0, 2.4 MB DMG, macOS 15 and later. Your Mac's chip is listed under the Apple menu, About This Mac.</p>
           <ol class="steps-list">
             <li><h3>Drag Lega to Applications</h3><p>Open the DMG, then drag the Lega icon to the Applications folder.</p></li>
             <li><h3>Allow it on first launch</h3><p>macOS holds Lega back once. Open System Settings, Privacy &amp; Security, then click Open Anyway.</p></li>
@@ -467,7 +501,7 @@
 <script>
 /* Language: English is the page as written; Bahasa Indonesia swaps text from this dictionary before the moments mount. */
 (function () {
-  var ID = {"App": "Aplikasi", "Features": "Fitur", "Safety": "Keamanan", "Cleaning rules": "Aturan pembersihan", "Caches only, no questions": "Cache saja, tanpa bertanya", "Large data confirmation": "Konfirmasi data besar", "Asks before deleting": "Bertanya sebelum menghapus", "Everyday": "Sehari-hari", "Clean without opening a window": "Bersihkan tanpa membuka jendela", "Cache locations": "Lokasi cache", "Browsers, packages and builds": "Browser, paket, dan build", "Download free": "Download gratis", "For macOS 15 and later, Apple Silicon and Intel.": "Untuk macOS 15 ke atas, Apple Silicon dan Intel.", "Quick": "Cepat", "Advanced": "Lanjutan", "Free space": "Ruang kosong", "8.7 GB": "8,7 GB", "Quick clean": "Pembersihan cepat", "Clean": "Bersihkan", "All 7": "Semua 7", "Ready 6": "Siap 6", "Skipped 1": "Dilewati 1", "Old Codex versions": "Versi lama Codex", "25 old versions": "25 versi lama", "7.5 GB": "7,5 GB", "Ready": "Siap", "Node.js packages": "Paket Node.js", "1.3 GB": "1,3 GB", "Open now": "Sedang terbuka", "Skipped": "Dilewati", "Build output": "Hasil build", "Old packages": "Paket lama", "Done": "Selesai", "skipped, open now": "dilewati, sedang terbuka", "deleted": "dihapus", "10.9 GB": "10,9 GB", "freed": "kembali kosong", "Read the source code": "Baca kode sumbernya", "Advanced options": "Opsi lanjutan", "Details": "Keterangan", "Action": "Tindakan", "Size": "Ukuran", "Tidied up in the app itself": "Dirapikan lewat aplikasinya", "Open app": "Buka aplikasi", "Downloaded again when needed": "Diunduh ulang saat dipakai", "Delete": "Hapus", "7.3 GB": "7,3 GB", "No Microsoft apps left": "Tak ada aplikasi Microsoft", "Leftover emergency copies": "Salinan darurat tertinggal", "Move to Trash": "Ke Trash", "1.1 GB": "1,1 GB", "Browsers for automated tests": "Browser uji otomatis", "Emptied through Finder": "Kosongkan lewat Finder", "Empty": "Kosongkan", "2.4 GB": "2,4 GB", "Meeting recording": "Rekaman rapat", "Downloads, June 2026": "Downloads, Juni 2026", "Old installer": "Installer lama", "Downloads, May 2026": "Downloads, Mei 2026", "Workshop material": "Bahan workshop", "12 largest items in Downloads": "12 item terbesar di Downloads", "Meeting recording.mp4": "Rekaman rapat.mp4", "Client proposal.pptx": "Proposal klien.pptx", "Data science book.pdf": "Buku data science.pdf", "Budget 2026.xlsx": "Anggaran 2026.xlsx", "App design.fig": "Desain aplikasi.fig", "Sample data.zip": "Sampel data.zip", "Pipeline practice.ipynb": "Latihan pipeline.ipynb", "Final report.docx": "Laporan akhir.docx", "Old form.pdf": "Formulir lama.pdf", "App icon.fig": "Ikon aplikasi.fig", "Lecture slides.pdf": "Slide kuliah.pdf", "One button, room to breathe.": "Satu tombol, bikin Mac lega.", "Safe to use every day.": "Aman dipakai setiap hari.", "Four rules Lega always keeps.": "Empat aturan yang selalu Lega pegang.", "4 of 5 on": "4 dari 5 aktif", "Skip apps that are open": "Lewati aplikasi yang terbuka", "Keep the two newest Codex versions": "Simpan dua versi Codex terbaru", "Plus the active version": "Ditambah versi yang sedang aktif", "Delete WhatsApp data directly": "Hapus data WhatsApp langsung", "Always through the app": "Selalu lewat aplikasinya", "Personal files to the Trash": "File pribadi ke Trash", "Can still be restored": "Masih bisa dikembalikan", "Log every cleanup": "Catat setiap pembersihan", "Delete the Claude Desktop VM": "Hapus VM Claude Desktop", "2 of 4": "2 dari 4", "Claude Desktop is closed": "Claude Desktop tertutup", "Size counted: 7.3 GB": "Ukuran dihitung: 7,3 GB", "You press Delete": "Anda menekan Hapus", "Logged in Lega.log": "Dicatat di Lega.log", "Cleans right from the menu bar": "Membersihkan langsung dari menu bar", "The Lega icon stays in the menu bar after the window closes, and starts with your Mac.": "Ikon Lega tetap di menu bar setelah jendelanya ditutup, dan ikut menyala saat Mac dinyalakan.", "Sat 1:40 PM": "Sab 13.40", "6.6 GB": "6,6 GB", "free of 245 GB": "kosong dari 245 GB", "Mac on for 1 d 19 h": "Mac menyala 1 hari 19 jam", "A restart frees 4.8 GB of swap.": "Restart mengembalikan 4,8 GB swap.", "Clean 467 MB": "Bersihkan 467 MB", "Download Lega for Mac": "Download Lega untuk Mac", "Download for Apple Silicon": "Download untuk Apple Silicon", "Download for Intel": "Download untuk Intel", "Version 1.0.0, 2.3 MB DMG, macOS 15 and later. Your Mac's chip is listed under the Apple menu, About This Mac.": "Versi 1.0.0, DMG 2,3 MB, macOS 15 ke atas. Jenis chip Mac Anda tertulis di menu Apple, About This Mac.", "Drag Lega to Applications": "Seret Lega ke Applications", "Open the DMG, then drag the Lega icon to the Applications folder.": "Buka file DMG, lalu seret ikon Lega ke folder Applications.", "Allow it on first launch": "Izinkan saat pertama dibuka", "macOS holds Lega back once. Open System Settings, Privacy & Security, then click Open Anyway.": "macOS menahan Lega sekali. Buka System Settings, Privacy & Security, lalu klik Open Anyway.", "Clean from the menu bar": "Bersihkan dari menu bar", "The Lega icon stays in the menu bar and starts every time your Mac does.": "Ikon Lega tetap di menu bar dan ikut menyala setiap Mac dinyalakan.", "Or build it yourself from source": "Atau build sendiri dari kode sumber", "What if the app is open?": "Bagaimana kalau aplikasinya sedang terbuka?", "Can I lose my files?": "Apakah file saya bisa hilang?", "Why does macOS block it on first launch?": "Kenapa macOS memblokirnya saat dibuka?", "Lega is not signed with an Apple Developer ID yet. Open System Settings, Privacy & Security, then click Open Anyway. Only once.": "Lega belum ditandatangani Developer ID Apple. Buka System Settings, Privacy & Security, lalu klik Open Anyway. Cukup sekali.", "Which Macs are supported?": "Mac apa saja yang didukung?", "macOS 15 Sequoia and later, on Apple Silicon and Intel.": "macOS 15 Sequoia ke atas, di Apple Silicon maupun Intel.", "How much does it cost?": "Berapa harganya?", "Download Lega for your Mac": "Download Lega untuk Mac Anda", "A one-button storage cleaner for Mac, an open source product from": "Pembersih storage Mac satu tombol, sebuah produk open source dari", ", Wira Perdana's product house at wiraperdana.com.": ", rumah produk Wira Perdana di wiraperdana.com.", "Product": "Produk", "Get started": "Mulai", "Code": "Kode", "Repository": "Repositori", "MIT licence": "Lisensi MIT", "Feedback": "Laporan", "Report an issue": "Laporkan masalah", ". Product names and logos are trademarks of their owners.": ". Nama produk dan logo adalah merek dagang pemiliknya.", "Main": "Utama", "The Lega window with seven caches, and a cleanup result card of 10.9 GB": "Jendela Lega berisi tujuh cache, dan kartu hasil pembersihan 10,9 GB", "Lega's advanced options window: large data on the left, the largest Downloads items on the right": "Jendela opsi lanjutan Lega: daftar data besar di kiri, item terbesar di Downloads di kanan", "Lega's menu bar panel: 6.6 GB free, a restart suggestion, a Clean 467 MB button and advanced options": "Panel menu bar Lega: ruang kosong 6,6 GB, saran restart, tombol Bersihkan 467 MB, dan opsi lanjutan", "The Lega DMG window: drag the Lega icon to the Applications folder": "Jendela DMG Lega: seret ikon Lega ke folder Applications", "Lega app icon": "Ikon aplikasi Lega", "Lega: free up Mac storage with one button, free and open source": "Lega: bebaskan ruang Mac dengan satu tombol, gratis dan open source", "Free up Mac storage with one button": "Bebaskan ruang Mac dengan satu tombol", "Lega clears out the leftover files your apps quietly pile up, leaves the apps you are using alone, and always asks before it touches anything big. Free.": "Lega membuang file sisa yang diam-diam ditumpuk aplikasi, membiarkan aplikasi yang sedang Anda pakai, dan selalu bertanya sebelum menyentuh yang besar. Gratis.", "Lega frees up Mac storage with one button. It clears leftover app files, leaves open apps alone and asks before anything big. Free for macOS 15+.": "Lega membebaskan ruang Mac dengan satu tombol. File sisa aplikasi dibuang, aplikasi yang terbuka dibiarkan, dan yang besar selalu ditanyakan. Gratis.", "Lega looks in the eleven places where clutter usually hides, works around the apps you have open, and keeps a record of everything it clears.": "Lega mencari di sebelas tempat yang biasa penuh sampah, tidak mengganggu aplikasi yang sedang terbuka, dan mencatat semua yang dibersihkan.", "See what is taking up space": "Lihat apa yang memakan ruang", "On the left, the big items Lega finds and how much room each one takes. On the right, your largest downloads, ready for the Trash. Changed your mind? Take them back out.": "Di kiri, barang besar yang Lega temukan beserta ukurannya. Di kanan, unduhan terbesar Anda, siap dipindah ke Trash. Berubah pikiran? Ambil lagi dari Trash.", "Clears the safe stuff without asking": "Membersihkan yang aman tanpa bertanya", "The main button only removes temporary files that apps make again on their own. Apps you have open are left alone.": "Tombol utama hanya membuang file sementara yang akan dibuat ulang oleh aplikasinya sendiri. Aplikasi yang sedang terbuka tidak diganggu.", "Asks before anything big": "Bertanya dulu untuk yang besar", "Big items, like Claude's offline engine, old Office backups or a Microsoft updater you no longer need, go only after you say yes.": "Barang besar, seperti mesin offline Claude, cadangan lama Office, atau updater Microsoft yang tidak terpakai, baru dihapus setelah Anda setuju.", "Knows where the clutter hides": "Tahu di mana sampahnya menumpuk", "Browsers, meeting apps, developer tools and more. Anything that is not on your Mac stays out of the way.": "Browser, aplikasi rapat, alat developer, dan lainnya. Yang tidak ada di Mac Anda tidak ditampilkan.", "What does the main button remove?": "Apa saja yang dibuang tombol utama?", "Only temporary files that apps make again by themselves, from your browsers, Zoom, developer tools and old app updates.": "Hanya file sementara yang akan dibuat ulang oleh aplikasinya sendiri, dari browser, Zoom, alat developer, dan sisa update lama.", "Lega skips it, so you never have to close anything or restart your Mac first.": "Lega melewatinya, jadi Anda tidak perlu menutup apa pun atau merestart Mac dulu.", "Your own files only ever go to the Trash, so you can take them back. Anything big waits for your yes.": "File pribadi Anda hanya dipindah ke Trash, jadi masih bisa diambil lagi. Yang besar selalu menunggu persetujuan Anda.", "Free. Anyone can read and check its code on GitHub.": "Gratis. Siapa pun bisa membaca dan memeriksa kodenya di GitHub.", "Free, for macOS 15 and later.": "Gratis, untuk macOS 15 ke atas."};
+  var ID = {"App": "Aplikasi", "Features": "Fitur", "Safety": "Keamanan", "Cleaning rules": "Aturan pembersihan", "Caches only, no questions": "Cache saja, tanpa bertanya", "Large data confirmation": "Konfirmasi data besar", "Asks before deleting": "Bertanya sebelum menghapus", "Everyday": "Sehari-hari", "Clean without opening a window": "Bersihkan tanpa membuka jendela", "Cache locations": "Lokasi cache", "Browsers, packages and builds": "Browser, paket, dan build", "Download free": "Download gratis", "For macOS 15 and later, Apple Silicon and Intel.": "Untuk macOS 15 ke atas, Apple Silicon dan Intel.", "Quick": "Cepat", "Advanced": "Lanjutan", "Free space": "Ruang kosong", "Quick clean": "Pembersihan cepat", "Clean": "Bersihkan", "All 7": "Semua 7", "Ready 6": "Siap 6", "Skipped 1": "Dilewati 1", "Old Codex versions": "Versi lama Codex", "25 old versions": "25 versi lama", "7.5 GB": "7,5 GB", "Ready": "Siap", "Node.js packages": "Paket Node.js", "1.3 GB": "1,3 GB", "Open now": "Sedang terbuka", "Skipped": "Dilewati", "Build output": "Hasil build", "Old packages": "Paket lama", "Done": "Selesai", "skipped, open now": "dilewati, sedang terbuka", "deleted": "dihapus", "freed": "kembali kosong", "Read the source code": "Baca kode sumbernya", "Advanced options": "Opsi lanjutan", "Details": "Keterangan", "Action": "Tindakan", "Size": "Ukuran", "Tidied up in the app itself": "Dirapikan lewat aplikasinya", "Open app": "Buka aplikasi", "Downloaded again when needed": "Diunduh ulang saat dipakai", "Delete": "Hapus", "7.3 GB": "7,3 GB", "No Microsoft apps left": "Tak ada aplikasi Microsoft", "Leftover emergency copies": "Salinan darurat tertinggal", "Move to Trash": "Ke Trash", "1.1 GB": "1,1 GB", "Browsers for automated tests": "Browser uji otomatis", "Emptied through Finder": "Kosongkan lewat Finder", "Empty": "Kosongkan", "2.4 GB": "2,4 GB", "Meeting recording": "Rekaman rapat", "Downloads, June 2026": "Downloads, Juni 2026", "Old installer": "Installer lama", "Downloads, May 2026": "Downloads, Mei 2026", "Workshop material": "Bahan workshop", "12 largest items in Downloads": "12 item terbesar di Downloads", "Meeting recording.mp4": "Rekaman rapat.mp4", "Client proposal.pptx": "Proposal klien.pptx", "Data science book.pdf": "Buku data science.pdf", "Budget 2026.xlsx": "Anggaran 2026.xlsx", "App design.fig": "Desain aplikasi.fig", "Sample data.zip": "Sampel data.zip", "Pipeline practice.ipynb": "Latihan pipeline.ipynb", "Final report.docx": "Laporan akhir.docx", "Old form.pdf": "Formulir lama.pdf", "App icon.fig": "Ikon aplikasi.fig", "Lecture slides.pdf": "Slide kuliah.pdf", "One button, room to breathe.": "Satu tombol, bikin Mac lega.", "Safe to use every day.": "Aman dipakai setiap hari.", "Four rules Lega always keeps.": "Empat aturan yang selalu Lega pegang.", "4 of 5 on": "4 dari 5 aktif", "Skip apps that are open": "Lewati aplikasi yang terbuka", "Keep the two newest Codex versions": "Simpan dua versi Codex terbaru", "Plus the active version": "Ditambah versi yang sedang aktif", "Delete WhatsApp data directly": "Hapus data WhatsApp langsung", "Always through the app": "Selalu lewat aplikasinya", "Personal files to the Trash": "File pribadi ke Trash", "Can still be restored": "Masih bisa dikembalikan", "Log every cleanup": "Catat setiap pembersihan", "Delete the Claude Desktop VM": "Hapus VM Claude Desktop", "2 of 4": "2 dari 4", "Claude Desktop is closed": "Claude Desktop tertutup", "Size counted: 7.3 GB": "Ukuran dihitung: 7,3 GB", "You press Delete": "Anda menekan Hapus", "Logged in Lega.log": "Dicatat di Lega.log", "Cleans right from the menu bar": "Membersihkan langsung dari menu bar", "The Lega icon stays in the menu bar after the window closes, and starts with your Mac.": "Ikon Lega tetap di menu bar setelah jendelanya ditutup, dan ikut menyala saat Mac dinyalakan.", "Sat 1:40 PM": "Sab 13.40", "6.6 GB": "6,6 GB", "free of 245 GB": "kosong dari 245 GB", "Mac on for 1 d 19 h": "Mac menyala 1 hari 19 jam", "A restart frees 4.8 GB of swap.": "Restart mengembalikan 4,8 GB swap.", "Clean 467 MB": "Bersihkan 467 MB", "Download Lega for Mac": "Download Lega untuk Mac", "Download for Apple Silicon": "Download untuk Apple Silicon", "Download for Intel": "Download untuk Intel", "Version 1.0.0, 2.4 MB DMG, macOS 15 and later. Your Mac's chip is listed under the Apple menu, About This Mac.": "Versi 1.0.0, DMG 2,4 MB, macOS 15 ke atas. Jenis chip Mac Anda tertulis di menu Apple, About This Mac.", "Drag Lega to Applications": "Seret Lega ke Applications", "Open the DMG, then drag the Lega icon to the Applications folder.": "Buka file DMG, lalu seret ikon Lega ke folder Applications.", "Allow it on first launch": "Izinkan saat pertama dibuka", "macOS holds Lega back once. Open System Settings, Privacy & Security, then click Open Anyway.": "macOS menahan Lega sekali. Buka System Settings, Privacy & Security, lalu klik Open Anyway.", "Clean from the menu bar": "Bersihkan dari menu bar", "The Lega icon stays in the menu bar and starts every time your Mac does.": "Ikon Lega tetap di menu bar dan ikut menyala setiap Mac dinyalakan.", "Or build it yourself from source": "Atau build sendiri dari kode sumber", "What if the app is open?": "Bagaimana kalau aplikasinya sedang terbuka?", "Can I lose my files?": "Apakah file saya bisa hilang?", "Why does macOS block it on first launch?": "Kenapa macOS memblokirnya saat dibuka?", "Lega is not signed with an Apple Developer ID yet. Open System Settings, Privacy & Security, then click Open Anyway. Only once.": "Lega belum ditandatangani Developer ID Apple. Buka System Settings, Privacy & Security, lalu klik Open Anyway. Cukup sekali.", "Which Macs are supported?": "Mac apa saja yang didukung?", "macOS 15 Sequoia and later, on Apple Silicon and Intel.": "macOS 15 Sequoia ke atas, di Apple Silicon maupun Intel.", "How much does it cost?": "Berapa harganya?", "Download Lega for your Mac": "Download Lega untuk Mac Anda", "A one-button storage cleaner for Mac, an open source product from": "Pembersih storage Mac satu tombol, sebuah produk open source dari", ", Wira Perdana's product house at wiraperdana.com.": ", rumah produk Wira Perdana di wiraperdana.com.", "Product": "Produk", "Get started": "Mulai", "Code": "Kode", "Repository": "Repositori", "MIT licence": "Lisensi MIT", "Feedback": "Laporan", "Report an issue": "Laporkan masalah", ". Product names and logos are trademarks of their owners.": ". Nama produk dan logo adalah merek dagang pemiliknya.", "Main": "Utama", "The Lega window with seven caches, and a cleanup result card of 10.9 GB": "Jendela Lega berisi tujuh cache, dan kartu hasil pembersihan 10,9 GB", "Lega's advanced options window: large data on the left, the largest Downloads items on the right": "Jendela opsi lanjutan Lega: daftar data besar di kiri, item terbesar di Downloads di kanan", "Lega's menu bar panel: 6.6 GB free, a restart suggestion, a Clean 467 MB button and advanced options": "Panel menu bar Lega: ruang kosong 6,6 GB, saran restart, tombol Bersihkan 467 MB, dan opsi lanjutan", "The Lega DMG window: drag the Lega icon to the Applications folder": "Jendela DMG Lega: seret ikon Lega ke folder Applications", "Lega app icon": "Ikon aplikasi Lega", "Lega: free up Mac storage with one button, free and open source": "Lega: bebaskan ruang Mac dengan satu tombol, gratis dan open source", "Free up Mac storage with one button": "Bebaskan ruang Mac dengan satu tombol", "Lega clears out the leftover files your apps quietly pile up, leaves the apps you are using alone, and always asks before it touches anything big. Free.": "Lega membuang file sisa yang diam-diam ditumpuk aplikasi, membiarkan aplikasi yang sedang Anda pakai, dan selalu bertanya sebelum menyentuh yang besar. Gratis.", "Lega frees up Mac storage with one button. It clears leftover app files, leaves open apps alone and asks before anything big. Free for macOS 15+.": "Lega membebaskan ruang Mac dengan satu tombol. File sisa aplikasi dibuang, aplikasi yang terbuka dibiarkan, dan yang besar selalu ditanyakan. Gratis.", "Lega looks in the eleven places where clutter usually hides, works around the apps you have open, and keeps a record of everything it clears.": "Lega mencari di sebelas tempat yang biasa penuh sampah, tidak mengganggu aplikasi yang sedang terbuka, dan mencatat semua yang dibersihkan.", "See what is taking up space": "Lihat apa yang memakan ruang", "On the left, the big items Lega finds and how much room each one takes. On the right, your largest downloads, ready for the Trash. Changed your mind? Take them back out.": "Di kiri, barang besar yang Lega temukan beserta ukurannya. Di kanan, unduhan terbesar Anda, siap dipindah ke Trash. Berubah pikiran? Ambil lagi dari Trash.", "Clears the safe stuff without asking": "Membersihkan yang aman tanpa bertanya", "The main button only removes temporary files that apps make again on their own. Apps you have open are left alone.": "Tombol utama hanya membuang file sementara yang akan dibuat ulang oleh aplikasinya sendiri. Aplikasi yang sedang terbuka tidak diganggu.", "Asks before anything big": "Bertanya dulu untuk yang besar", "Big items, like Claude's offline engine, old Office backups or a Microsoft updater you no longer need, go only after you say yes.": "Barang besar, seperti mesin offline Claude, cadangan lama Office, atau updater Microsoft yang tidak terpakai, baru dihapus setelah Anda setuju.", "Knows where the clutter hides": "Tahu di mana sampahnya menumpuk", "Browsers, meeting apps, developer tools and more. Anything that is not on your Mac stays out of the way.": "Browser, aplikasi rapat, alat developer, dan lainnya. Yang tidak ada di Mac Anda tidak ditampilkan.", "What does the main button remove?": "Apa saja yang dibuang tombol utama?", "Only temporary files that apps make again by themselves, from your browsers, Zoom, developer tools and old app updates.": "Hanya file sementara yang akan dibuat ulang oleh aplikasinya sendiri, dari browser, Zoom, alat developer, dan sisa update lama.", "Lega skips it, so you never have to close anything or restart your Mac first.": "Lega melewatinya, jadi Anda tidak perlu menutup apa pun atau merestart Mac dulu.", "Your own files only ever go to the Trash, so you can take them back. Anything big waits for your yes.": "File pribadi Anda hanya dipindah ke Trash, jadi masih bisa diambil lagi. Yang besar selalu menunggu persetujuan Anda.", "Free. Anyone can read and check its code on GitHub.": "Gratis. Siapa pun bisa membaca dan memeriksa kodenya di GitHub.", "Free, for macOS 15 and later.": "Gratis, untuk macOS 15 ke atas.", "11.45 GB": "11,45 GB", "free on this Mac": "kosong di Mac ini", "leftover files": "file sisa", "The Lega window with seven caches, and a cleanup result card of 11.45 GB": "Jendela Lega berisi tujuh cache, dan kartu hasil pembersihan 11,45 GB"};
   var lang = 'en';
   try { lang = localStorage.getItem('lega-lang') || 'en'; } catch (e) {}
   var q = new URLSearchParams(location.search).get('lang');
@@ -508,12 +542,22 @@ addEventListener('DOMContentLoaded', function () {
   var id = document.documentElement.lang === 'id';
   var W = id ? { ready: 'Siap', cleaned: 'Dibersihkan', cleaning: 'Membersihkan', done: 'Selesai', clean: 'Bersihkan', gb: ',' }
              : { ready: 'Ready', cleaned: 'Cleaned', cleaning: 'Cleaning', done: 'Done', clean: 'Clean', gb: '.' };
+  var meter = document.querySelector('[data-meter]'), meterFree = meter && meter.querySelector('[data-meter-free]'),
+      meterJunk = meter && meter.querySelector('[data-meter-junk]'), meterBar = meter && meter.querySelector('.hm-bar');
   var btn = art.querySelector('.d-btn'), free = art.querySelector('[data-free]'), cursor = art.querySelector('.d-cursor');
   var note = art.querySelector('[data-demo-note]'), lines = note.querySelectorAll('.d-note__line, .d-card__row');
   var rows = [].slice.call(art.querySelectorAll('.d-row')).filter(function (r) { return r.offsetParent; });
   var nums = rows.map(function (r) { return r.querySelector('.num').textContent; });
-  var gb = { v: 8.7 };
-  function showFree() { free.textContent = gb.v.toFixed(1).replace('.', W.gb) + ' GB'; }
+  var gb = { v: 6.6 };
+  function showFree() {
+    var t = (Math.round(gb.v * 100) / 100).toString().replace('.', W.gb) + ' GB';
+    free.textContent = t;
+    if (meter) {
+      meterFree.textContent = t;
+      meterJunk.textContent = (Math.round((18.05 - gb.v) * 100) / 100).toString().replace('.', W.gb) + ' GB';
+      meterBar.style.setProperty('--f', (gb.v / 18.05).toFixed(4));
+    }
+  }
   function at(el, dx, dy) {
     var a = art.getBoundingClientRect(), b = el.getBoundingClientRect();
     return { x: b.left - a.left + b.width * dx, y: b.top - a.top + b.height * dy };
@@ -524,7 +568,7 @@ addEventListener('DOMContentLoaded', function () {
       n.textContent = nums[i]; gsap.set(n, { opacity: 1 });
       if (!c.classList.contains('d-chip--low')) { c.textContent = W.ready; c.classList.remove('is-done'); }
     });
-    btn.textContent = W.clean; gb.v = 8.7; showFree();
+    btn.textContent = W.clean; gb.v = 6.6; showFree();
     gsap.set(note, { opacity: 0, y: 24 }); gsap.set(lines, { opacity: 0, y: 8 });
     var p = at(art, 0.92, 0.95); gsap.set(cursor, { x: p.x, y: p.y, opacity: 0, scale: 1 });
   }
@@ -534,7 +578,7 @@ addEventListener('DOMContentLoaded', function () {
     .to(cursor, { x: function () { return at(btn, 0.55, 0.6).x; }, y: function () { return at(btn, 0.55, 0.6).y; }, duration: 1, ease: 'power3.inOut' }, '<')
     .to([cursor, btn], { scale: 0.9, duration: 0.12, yoyo: true, repeat: 1, ease: 'power1.inOut' })
     .call(function () { btn.textContent = W.cleaning; })
-    .to(gb, { v: 19.6, duration: 2.4, ease: 'power2.out', onUpdate: showFree }, '>-0.05')
+    .to(gb, { v: 18.05, duration: 2.4, ease: 'power2.out', onUpdate: showFree }, '>-0.05')
     .to(cursor, { opacity: 0, duration: 0.4 }, '<0.3');
   rows.forEach(function (r, i) {
     var c = r.querySelector('.d-chip'), n = r.querySelector('.num'), t = 1.75 + i * 0.32;
@@ -556,10 +600,59 @@ addEventListener('DOMContentLoaded', function () {
   pause.addEventListener('click', function () {
     userPaused = !userPaused; userPaused ? tl.pause() : tl.resume();
     pause.classList.toggle('is-paused', userPaused);
+    document.querySelector('.hero').classList.toggle('rings-paused', userPaused);
     pause.setAttribute('aria-label', userPaused ? (id ? 'Putar demo' : 'Play the demo') : (id ? 'Jeda demo' : 'Pause the demo'));
   });
   new IntersectionObserver(function (e) { if (!userPaused) e[0].isIntersecting ? tl.resume() : tl.pause(); }).observe(art);
   var rt; addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { tl.invalidate(); }, 200); });
+});
+</script>
+<script>
+/* Exhale: the headline starts squeezed among file crumbs, then breathes out to full width while the crumbs
+   are swept away: what freeing space feels like. Hero: on load. Statement: each time it comes into view.
+   Reduced motion, phones and a missing GSAP keep the plain text. */
+addEventListener('DOMContentLoaded', function () {
+  if (!window.gsap || matchMedia('(prefers-reduced-motion: reduce)').matches || matchMedia('(max-width: 639px)').matches) return;
+  var seed = 0x2f6b9d1;
+  var rnd = function () { seed = (seed + 0x6D2B79F5) | 0; var t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  function prepare(h) {
+    var text = h.textContent.replace(/\s+/g, ' ').trim(), words = text.split(' '), chars = [];
+    h.setAttribute('aria-label', text); h.textContent = '';
+    words.forEach(function (w, wi) {
+      var ws = document.createElement('span'); ws.className = 'ex-w'; ws.setAttribute('aria-hidden', 'true');
+      w.split('').forEach(function (ch) { var c = document.createElement('span'); c.className = 'ex-c'; c.textContent = ch; ws.appendChild(c); chars.push(c); });
+      h.appendChild(ws); if (wi < words.length - 1) h.appendChild(document.createTextNode(' '));
+    });
+    var crumbs = [];
+    for (var i = 0; i < 18; i++) { var k = document.createElement('i'); k.className = 'ex-crumb'; k.setAttribute('aria-hidden', 'true'); h.appendChild(k); crumbs.push(k); }
+    return { chars: chars, crumbs: crumbs };
+  }
+  function build(h, parts) {
+    var box = h.getBoundingClientRect(), cx = box.width / 2, cy = box.height / 2;
+    var tl = gsap.timeline({ paused: true });
+    parts.chars.forEach(function (c) {
+      var r = c.getBoundingClientRect(), dx = (r.left + r.width / 2 - box.left) - cx, dy = (r.top + r.height / 2 - box.top) - cy;
+      tl.fromTo(c, { x: -dx * 0.42, y: -dy * 0.35, scaleX: 0.72, opacity: 0.55 },
+        { x: 0, y: 0, scaleX: 1, opacity: 1, duration: 1.8, ease: 'expo.out' }, 0.15 + Math.abs(dx) / box.width * 0.35);
+    });
+    parts.crumbs.forEach(function (k) {
+      var x = cx + (rnd() - 0.5) * box.width * 0.6, y = cy + (rnd() - 0.5) * box.height * 0.5;
+      var ang = Math.atan2(y - cy, x - cx) + (rnd() - 0.5) * 0.6, d = 260 + rnd() * 420;
+      tl.fromTo(k, { x: x, y: y, rotation: (rnd() - 0.5) * 40, opacity: 0.9, scale: 1 },
+        { x: x + Math.cos(ang) * d, y: y + Math.sin(ang) * d, rotation: (rnd() - 0.5) * 220, opacity: 0, scale: 0.5, duration: 1.5, ease: 'power2.out' }, 0.2 + rnd() * 0.3);
+    });
+    return tl;
+  }
+  document.querySelectorAll('[data-exhale]').forEach(function (h) {
+    var parts = prepare(h), tl = null;
+    var go = function () { if (!tl) tl = build(h, parts); tl.restart(); };
+    if (h.dataset.exhale === 'load') { (document.fonts ? document.fonts.ready : Promise.resolve()).then(go); return; }
+    // set the cramped start before it is seen, so it breathes out the moment it enters
+    (document.fonts ? document.fonts.ready : Promise.resolve()).then(function () {
+      tl = build(h, parts); tl.progress(0);
+      new IntersectionObserver(function (e) { if (e[0].isIntersecting) tl.restart(); }, { threshold: 0.45 }).observe(h);
+    });
+  });
 });
 </script>
 <script type="module" src="assets/system.js"></script>
