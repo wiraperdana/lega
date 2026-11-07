@@ -726,8 +726,24 @@ struct SettingsView: View {
 
 // MARK: - App
 
+/// Menjaga aplikasi tetap hidup di menu bar setelah jendela ditutup.
+/// Ikon Dock hanya tampil selama jendela utama terbuka.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        !UserDefaults.standard.bool(forKey: "showMenuBar") && UserDefaults.standard.object(forKey: "showMenuBar") != nil
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { note in
+            guard let closing = note.object as? NSWindow, closing.title == "Lega" || (closing.identifier?.rawValue.hasPrefix("main") ?? false) else { return }
+            NSApp.setActivationPolicy(.accessory)
+        }
+    }
+}
+
 @main
 struct LegaApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject var m = Model()
     @AppStorage("showMenuBar") private var showMenuBar = true
     @AppStorage("didSetupLogin") private var didSetupLogin = false
@@ -743,6 +759,7 @@ struct LegaApp: App {
     var body: some Scene {
         Window("Lega", id: "main") {
             MainView().environmentObject(m).frame(minWidth: 640, minHeight: 640)
+                .onAppear { NSApp.setActivationPolicy(.regular); NSApp.activate(ignoringOtherApps: true) }
         }
         .windowResizability(.contentMinSize)
         // Saat menu bar aktif dan Mac baru menyala, jendela tidak ikut muncul
