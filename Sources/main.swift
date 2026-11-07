@@ -250,6 +250,12 @@ func fmt(_ b: Int64) -> String {
 let accent = Color(red: 0.05, green: 0.56, blue: 0.50)
 
 /// "sistem" mengikuti macOS, "terang" dan "gelap" memaksa salah satunya.
+/// Panel menu bar tidak mengikuti preferredColorScheme, jadi tampilan diatur di level aplikasi.
+@MainActor func applyAppearance(_ appearance: String) {
+    NSApp.appearance = appearance == "terang" ? NSAppearance(named: .aqua)
+        : appearance == "gelap" ? NSAppearance(named: .darkAqua) : nil
+}
+
 func scheme(_ appearance: String) -> ColorScheme? {
     switch appearance { case "terang": .light; case "gelap": .dark; default: nil }
 }
@@ -286,13 +292,61 @@ final class Model: ObservableObject {
 
     init() {
         refresh()
+        // Pemicu mode demo untuk merekam video: halaman awal, klik Clean, dan dialog konfirmasi
+        if demo {
+            let d = UserDefaults.standard
+            if let p = d.string(forKey: "demoPane") {
+                pane = ["lanjutan": .lanjutan, "downloads": .downloads, "aplikasi": .aplikasi][p] ?? .cepat
+            }
+            let clean = d.double(forKey: "demoAutoClean"), askAt = d.double(forKey: "demoAsk")
+            if clean > 0 { Task { @MainActor in try? await Task.sleep(for: .seconds(clean)); self.cleanQuick() } }
+            if askAt > 0 {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(askAt))
+                    self.ask(tr("Hapus VM Claude Desktop?", "Delete the Claude Desktop VM?"),
+                             tr("Claude Desktop akan mengunduhnya ulang kalau fitur agent dipakai lagi. Penghapusan ini permanen.",
+                                "Claude Desktop downloads it again if the agent feature is used. This deletion is permanent.")) {}
+                }
+            }
+        }
         // Pindai ulang tiap 30 menit supaya angka di menu bar tetap segar
         Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
         }
     }
 
+    /// Mode demo untuk screenshot dan video: data contoh, tidak ada yang dihapus.
+    /// Nyalakan dengan `defaults write id.innovationkit.lega demo -bool true`.
+    var demo: Bool { UserDefaults.standard.bool(forKey: "demo") }
+
+    func loadDemo() {
+        let gb: Int64 = 1_000_000_000, mb: Int64 = 1_000_000
+        free = 6_600 * mb; total = 245 * gb
+        sizes = ["codex": 7_500 * mb, "npm": 1_300 * mb, "chrome": 748 * mb, "comet": 436 * mb,
+                 "build": 547 * mb, "brew": 543 * mb, "clang": 812 * mb]
+        statuses = [:]
+        adv = ["whatsapp": 30_800 * mb, "claudevm": 7_300 * mb, "autorecover": 1_100 * mb, "playwright": 201 * mb]
+        mauInstalled = true; msApps = []
+        swapBytes = 4_830 * mb; bootDate = Date().addingTimeInterval(-(86_400 + 19 * 3_600))
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("lega-demo")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        func item(_ name: String, _ size: Int64, _ days: Double) -> FileItem {
+            let u = dir.appendingPathComponent(name)
+            if !FileManager.default.fileExists(atPath: u.path) { FileManager.default.createFile(atPath: u.path, contents: nil) }
+            return FileItem(url: u, size: size, modified: Date().addingTimeInterval(-days * 86_400))
+        }
+        downloads = [item("Meeting recording.mp4", 381 * mb, 120), item("Client proposal.pptx", 250 * mb, 160),
+                     item("Data science book.pdf", 117 * mb, 200), item("Budget 2026.xlsx", 96 * mb, 60),
+                     item("Sample data.zip", 77 * mb, 90), item("Final report.docx", 41 * mb, 30)]
+        apps = ["Safari", "Xcode", "Keynote", "Numbers", "Pages"].compactMap { n in
+            let u = URL(fileURLWithPath: "/Applications/\(n).app")
+            return FileManager.default.fileExists(atPath: u.path) ? FileItem(url: u, size: 900 * mb, modified: Date()) : nil
+        }
+        scanning = false; scanningAdv = false
+    }
+
     func refresh() {
+        if demo { loadDemo(); return }
         guard !scanning, !scanningAdv else { return }
         scanning = true
         scanningAdv = true
@@ -329,6 +383,18 @@ final class Model: ObservableObject {
     func cleanQuick() {
         busy = true
         result = nil
+        if demo {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1.6))
+                var freed: Int64 = 0
+                for (k, v) in sizes where k != "comet" { freed += v; sizes[k] = 0 }
+                withAnimation(.snappy) { free += freed }
+                statuses = ["comet": tr("Dilewati, Comet sedang terbuka", "Skipped, Comet is open")]
+                result = tr("\(fmt(freed)) dibebaskan.", "\(fmt(freed)) freed.")
+                busy = false
+            }
+            return
+        }
         let running = Engine.runningAppNames()
         Task.detached {
             var st: [String: String] = [:]
@@ -636,8 +702,9 @@ struct PillLabel<L: View>: View {
     var body: some View {
         HStack(spacing: 6) {
             Circle().fill(prominent ? Color.primary : Color.secondary.opacity(0.6)).frame(width: 6, height: 6)
-            label
+            label.lineLimit(1)
         }
+        .fixedSize()
         .font(.callout.weight(prominent ? .medium : .regular))
         .foregroundStyle(enabled ? Color.primary : Color.secondary)
         .padding(.horizontal, 12).padding(.vertical, 5)
@@ -713,6 +780,7 @@ struct MainView: View {
         Group {
             if viewMode == "sidebar" { SidebarLayout().frame(minWidth: 940, minHeight: 600) } else { classic }
         }
+        .onChange(of: appearance) { _, a in applyAppearance(a) }
         .sheet(isPresented: $m.showSettings) {
             VStack(spacing: 0) {
                 SettingsView(embedded: true)
@@ -1414,6 +1482,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .scrollDisabled(true)
+        .onChange(of: appearance) { _, a in applyAppearance(a) }
         .frame(maxWidth: 560, alignment: .leading)
     }
 
@@ -1438,6 +1507,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        applyAppearance(UserDefaults.standard.string(forKey: "appearance") ?? "sistem")
         NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { note in
             guard let closing = note.object as? NSWindow, closing.title == "Lega" || (closing.identifier?.rawValue.hasPrefix("main") ?? false) else { return }
             NSApp.setActivationPolicy(.accessory)

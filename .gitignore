@@ -1,3 +1,7 @@
 .DS_Store
 build/
 site/
+video/renders/
+video/**/.hyperframes/
+video/**/node_modules/
+video/**/.media/
