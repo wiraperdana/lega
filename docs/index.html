@@ -65,6 +65,17 @@
   .mb__row i { margin-left: auto; font-style: normal; padding: 3px 10px; border: 1px solid var(--line-strong, var(--line)); border-radius: 999px; }
   @media (prefers-reduced-motion: reduce) { .mb__ring .mb__arc { animation: none; } }
   .nav__lang { background: none; border: 0; cursor: pointer; font: inherit; color: inherit; padding: 0 4px; letter-spacing: .04em; }
+  /* hero demo (GSAP): cursor, cleaned chips, pause disc */
+  .hero__art .d-cursor { position: absolute; left: 0; top: 0; width: 24px; height: 24px; z-index: 6; pointer-events: none; opacity: 0; }
+  .d-cursor svg { width: 100%; height: 100%; fill: #111; stroke: #fff; stroke-width: 1.6; stroke-linejoin: round; filter: drop-shadow(0 2px 4px rgb(0 0 0 / .25)); }
+  .d-chip.is-done { background: color-mix(in oklab, var(--accent) 16%, white); color: color-mix(in oklab, var(--accent) 80%, black); }
+  .d-free { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .demo-pause { position: absolute; right: 16px; top: 16px; z-index: 6; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: #fff; display: grid; place-items: center; cursor: pointer; }
+  .demo-pause svg { width: 14px; height: 14px; fill: none; stroke: #111; stroke-width: 2; stroke-linecap: round; }
+  .demo-pause .i-play { display: none; fill: #111; stroke: none; }
+  .demo-pause.is-paused .i-pause { display: none; }
+  .demo-pause.is-paused .i-play { display: block; }
+  .no-demo .demo-pause { display: none; }
 </style>
 <link rel="stylesheet" href="assets/layout/demo.css">
 <link rel="stylesheet" href="assets/ui/base.css">
@@ -194,7 +205,7 @@
           <div class="d-win__body">
             <div class="d-side">
               <span class="is-on"><i></i>Quick</span><span><i></i>Advanced</span><span><i></i>Downloads</span><span><i></i>Log</span>
-              <span class="d-side__label">Free space</span><span><i></i>8.7 GB</span>
+              <span class="d-side__label">Free space</span><span><i></i><b class="d-free" data-free>8.7 GB</b></span>
             </div>
             <div class="d-main">
               <div class="d-main__head"><h4>Quick clean</h4><span class="d-btn">Clean</span></div>
@@ -210,12 +221,14 @@
             </div>
           </div>
         </div>
-        <div class="ly-piece ly-piece--note d-card" aria-hidden="true" data-ly-steps="700">
-          <div class="d-card__row"><h5>Quick clean</h5><span class="d-chip" data-step data-step-at="4">Done</span></div>
-          <div class="d-note__line" data-step><i class="warn">!</i><span><b>Comet</b> skipped, open now</span></div>
-          <div class="d-note__line" data-step><i>✓</i><span><b>6 cache</b> deleted</span></div>
-          <div class="d-note__line" data-step><i>✓</i><span><b>10.9 GB</b> freed</span></div>
+        <div class="ly-piece ly-piece--note d-card" aria-hidden="true" data-demo-note>
+          <div class="d-card__row"><h5>Quick clean</h5><span class="d-chip">Done</span></div>
+          <div class="d-note__line"><i class="warn">!</i><span><b>Comet</b> skipped, open now</span></div>
+          <div class="d-note__line"><i>✓</i><span><b>6 cache</b> deleted</span></div>
+          <div class="d-note__line"><i>✓</i><span><b>10.9 GB</b> freed</span></div>
         </div>
+        <span class="d-cursor" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 3l14 8.2-6.3 1.4L9.6 19z"/></svg></span>
+        <button class="demo-pause" type="button" aria-label="Pause the demo" data-demo-pause><svg viewBox="0 0 16 16" aria-hidden="true"><path class="i-pause" d="M5 3.5v9M11 3.5v9"/><path class="i-play" d="M5.5 3.5l7 4.5-7 4.5z"/></svg></button>
       </div>
     </div></div>
   </section>
@@ -481,6 +494,73 @@
     });
   });
 })();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js" defer></script>
+<script>
+/* Hero demo: the cursor presses Clean, each ready row is cleaned, Comet stays skipped, free space counts up,
+   the result card arrives, then it holds and plays again. Without GSAP or under reduced motion the finished
+   card simply stands. */
+addEventListener('DOMContentLoaded', function () {
+  var art = document.querySelector('.hero__art');
+  if (!art) return;
+  var still = matchMedia('(prefers-reduced-motion: reduce)').matches || matchMedia('(max-width: 639px)').matches;
+  if (!window.gsap || still) { art.classList.add('no-demo'); return; }
+  var id = document.documentElement.lang === 'id';
+  var W = id ? { ready: 'Siap', cleaned: 'Dibersihkan', cleaning: 'Membersihkan', done: 'Selesai', clean: 'Bersihkan', gb: ',' }
+             : { ready: 'Ready', cleaned: 'Cleaned', cleaning: 'Cleaning', done: 'Done', clean: 'Clean', gb: '.' };
+  var btn = art.querySelector('.d-btn'), free = art.querySelector('[data-free]'), cursor = art.querySelector('.d-cursor');
+  var note = art.querySelector('[data-demo-note]'), lines = note.querySelectorAll('.d-note__line, .d-card__row');
+  var rows = [].slice.call(art.querySelectorAll('.d-row')).filter(function (r) { return r.offsetParent; });
+  var nums = rows.map(function (r) { return r.querySelector('.num').textContent; });
+  var gb = { v: 8.7 };
+  function showFree() { free.textContent = gb.v.toFixed(1).replace('.', W.gb) + ' GB'; }
+  function at(el, dx, dy) {
+    var a = art.getBoundingClientRect(), b = el.getBoundingClientRect();
+    return { x: b.left - a.left + b.width * dx, y: b.top - a.top + b.height * dy };
+  }
+  function reset() {
+    rows.forEach(function (r, i) {
+      var c = r.querySelector('.d-chip'), n = r.querySelector('.num');
+      n.textContent = nums[i]; gsap.set(n, { opacity: 1 });
+      if (!c.classList.contains('d-chip--low')) { c.textContent = W.ready; c.classList.remove('is-done'); }
+    });
+    btn.textContent = W.clean; gb.v = 8.7; showFree();
+    gsap.set(note, { opacity: 0, y: 24 }); gsap.set(lines, { opacity: 0, y: 8 });
+    var p = at(art, 0.92, 0.95); gsap.set(cursor, { x: p.x, y: p.y, opacity: 0, scale: 1 });
+  }
+  var tl = gsap.timeline({ repeat: -1, repeatDelay: 0.4, paused: true, onRepeat: reset });
+  tl.call(reset)
+    .to(cursor, { opacity: 1, duration: 0.3 })
+    .to(cursor, { x: function () { return at(btn, 0.55, 0.6).x; }, y: function () { return at(btn, 0.55, 0.6).y; }, duration: 1, ease: 'power3.inOut' }, '<')
+    .to([cursor, btn], { scale: 0.9, duration: 0.12, yoyo: true, repeat: 1, ease: 'power1.inOut' })
+    .call(function () { btn.textContent = W.cleaning; })
+    .to(gb, { v: 19.6, duration: 2.4, ease: 'power2.out', onUpdate: showFree }, '>-0.05')
+    .to(cursor, { opacity: 0, duration: 0.4 }, '<0.3');
+  rows.forEach(function (r, i) {
+    var c = r.querySelector('.d-chip'), n = r.querySelector('.num'), t = 1.75 + i * 0.32;
+    if (c.classList.contains('d-chip--low')) {
+      tl.fromTo(c, { scale: 1 }, { scale: 1.1, duration: 0.18, yoyo: true, repeat: 1, ease: 'power1.inOut' }, t);
+      return;
+    }
+    tl.fromTo(r, { backgroundColor: 'rgba(15,128,114,0)' }, { backgroundColor: 'rgba(15,128,114,0.09)', duration: 0.18, yoyo: true, repeat: 1 }, t)
+      .call(function () { c.textContent = W.cleaned; c.classList.add('is-done'); n.textContent = '0 MB'; }, null, t + 0.12)
+      .fromTo(n, { opacity: 0.2 }, { opacity: 1, duration: 0.3 }, t + 0.12);
+  });
+  tl.call(function () { btn.textContent = W.done; }, null, '>0.1')
+    .to(note, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' }, '>0.1')
+    .to(lines, { opacity: 1, y: 0, duration: 0.4, stagger: 0.18, ease: 'power2.out' }, '<0.15')
+    .to({}, { duration: 3.2 })
+    .to(note, { opacity: 0, y: 12, duration: 0.4 });
+  reset(); tl.play(0);
+  var userPaused = false, pause = art.querySelector('[data-demo-pause]');
+  pause.addEventListener('click', function () {
+    userPaused = !userPaused; userPaused ? tl.pause() : tl.resume();
+    pause.classList.toggle('is-paused', userPaused);
+    pause.setAttribute('aria-label', userPaused ? (id ? 'Putar demo' : 'Play the demo') : (id ? 'Jeda demo' : 'Pause the demo'));
+  });
+  new IntersectionObserver(function (e) { if (!userPaused) e[0].isIntersecting ? tl.resume() : tl.pause(); }).observe(art);
+  var rt; addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { tl.invalidate(); }, 200); });
+});
 </script>
 <script type="module" src="assets/system.js"></script>
 <script type="module" src="assets/motion/motion.js"></script>
