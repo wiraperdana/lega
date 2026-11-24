@@ -265,7 +265,7 @@ func fmt(_ b: Int64) -> String {
     b <= 0 ? "0 MB" : ByteCountFormatter.string(fromByteCount: b, countStyle: .file)
 }
 
-let accent = Color(red: 0.05, green: 0.56, blue: 0.50)
+var accent: Color { Skin.current.accent }
 
 /// "sistem" mengikuti macOS, "terang" dan "gelap" memaksa salah satunya.
 /// Panel menu bar tidak mengikuti preferredColorScheme, jadi tampilan diatur di level aplikasi.
@@ -295,7 +295,13 @@ final class Model: ObservableObject {
     @Published var scanningAdv = false   // pemindaian lanjutan (WhatsApp, Downloads)
     @Published var busy = false
     @Published var result: String?
-    @Published var pane: Pane = .cepat
+    @Published var pane: Pane = .home
+    @Published var phase: Phase = .idle
+    @Published var checked: Set<Pane> = [.cache, .leftovers]
+    @Published var largeChosen: Set<String> = []
+    @Published var lastFreed: Int64 = 0
+    @Published var lastMoved: Int64 = 0
+    @Published var spaceScannedAt: Date?
     @Published var showSettings = false
     @Published var swapBytes: Int64 = 0
     @Published var bootDate = Date()
@@ -303,8 +309,6 @@ final class Model: ObservableObject {
     @Published var leftovers: [SpaceItem] = []
     @Published var scanningSpace = false
     @Published var leftoverSkip: Set<String> = []
-    @Published var offerAfterClean = false
-    @Published var offerExpanded = false
     @Published var spaceProgress: Double = 0
     @Published var spaceCurrent = ""
 
@@ -322,7 +326,7 @@ final class Model: ObservableObject {
         if demo {
             let d = UserDefaults.standard
             if let p = d.string(forKey: "demoPane") {
-                pane = ["lanjutan": .lanjutan, "downloads": .downloads, "aplikasi": .aplikasi][p] ?? .cepat
+                pane = ["appdata": .appdata, "large": .large, "apps": .apps, "leftovers": .leftovers][p] ?? .home
             }
             let clean = d.double(forKey: "demoAutoClean"), askAt = d.double(forKey: "demoAsk")
             if clean > 0 { Task { @MainActor in try? await Task.sleep(for: .seconds(clean)); self.cleanQuick() } }
@@ -334,6 +338,11 @@ final class Model: ObservableObject {
                                 "Claude Desktop downloads it again if the agent feature is used. This deletion is permanent.")) {}
                 }
             }
+        }
+        // Pemicu uji: `defaults write id.innovationkit.lega autoScanOnce -bool true` memulai satu scan saat dibuka
+        if UserDefaults.standard.bool(forKey: "autoScanOnce") {
+            UserDefaults.standard.removeObject(forKey: "autoScanOnce")
+            Task { @MainActor in try? await Task.sleep(for: .seconds(1)); self.startScan() }
         }
         // Pindai ulang tiap 30 menit supaya angka di menu bar tetap segar
         Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak self] _ in
@@ -406,7 +415,8 @@ final class Model: ObservableObject {
             let ap = Engine.appsTop(12)
             await MainActor.run { self.apps = ap }
             let wa = Engine.size(Engine.url("~/Library/Group Containers/group.net.whatsapp.WhatsApp.shared"))
-            await MainActor.run { self.adv["whatsapp"] = wa; self.scanningAdv = false; self.scanSpace() }
+            await MainActor.run { self.adv["whatsapp"] = wa; self.scanningAdv = false; self.scanSpace()
+                if self.phase == .scanning && !self.scanningSpace { withAnimation(.spring(response: 0.5)) { self.phase = .results } } }
         }
     }
 
@@ -452,14 +462,6 @@ final class Model: ObservableObject {
                     self.result = tr("Cache sudah bersih. Lihat Sisa aplikasi dan Peta ruang untuk pemakai ruang lainnya.", "Caches are clean. See Leftovers and Space map for what else uses space.")
                 }
                 self.busy = false
-                // Setelah cache, lanjut mencari sisa aplikasi dan langsung tawarkan hasilnya
-                // Hasil pindai yang sudah ada langsung ditawarkan; kalau belum ada, pindai dulu lalu tawarkan
-                if !self.scanningSpace && !self.leftovers.isEmpty {
-                    self.offerLeftovers()
-                } else {
-                    self.offerAfterClean = true
-                    self.scanSpace()
-                }
                 self.refresh()
             }
         }
@@ -530,28 +532,46 @@ final class Model: ObservableObject {
         item.url.pathExtension == "app" ? trashApp(item) : trashDownload(item)
     }
 
+    /// Uninstall bersih: aplikasi plus datanya di Library dalam satu konfirmasi.
     func trashApp(_ item: FileItem) {
         let name = item.url.deletingPathExtension().lastPathComponent
         if item.url.standardizedFileURL == Bundle.main.bundleURL.standardizedFileURL { result = tr("Lega tidak bisa membuang dirinya sendiri.", "Lega cannot move itself to the Trash."); return }
         if NSWorkspace.shared.runningApplications.contains(where: { $0.bundleURL?.standardizedFileURL == item.url.standardizedFileURL }) {
             result = tr("Tutup \(name) dulu.", "Quit \(name) first."); return
         }
-        ask(tr("Pindahkan \(name) ke Trash?", "Move \(name) to the Trash?"),
-            tr("\(fmt(item.size)). Aplikasinya dipindah ke Trash dan masih bisa dikembalikan. Pengaturan dan datanya di Library tidak disentuh.", "\(fmt(item.size)). The app moves to the Trash and can still be restored. Its settings and data in Library stay untouched."),
-            confirm: tr("Ke Trash", "Move to Trash")) { [self] in
-            NSWorkspace.shared.recycle([item.url]) { _, error in
-                Task { @MainActor in
-                    if let error {
-                        self.result = tr("Gagal: \(error.localizedDescription)", "Failed: \(error.localizedDescription)")
-                    } else {
-                        Engine.log("lanjutan: trash aplikasi \(item.url.path)")
-                        self.apps.removeAll { $0.id == item.id }
-                        self.result = tr("\(name) dipindah ke Trash. Kosongkan Trash supaya ruangnya kembali.", "\(name) moved to the Trash. Empty the Trash to get the space back.")
-                    }
+        let data = Engine.appData(for: item.url)
+        let dataSize = data.reduce(0) { $0 + Engine.size($1) }
+        let a = NSAlert()
+        a.messageText = tr("Uninstall \(name)?", "Uninstall \(name)?")
+        a.informativeText = data.isEmpty
+            ? tr("\(fmt(item.size)). Aplikasinya dipindah ke Trash dan masih bisa dikembalikan.", "\(fmt(item.size)). The app moves to the Trash and can still be restored.")
+            : tr("Aplikasi \(fmt(item.size)), ditambah \(fmt(dataSize)) data, cache, dan pengaturannya di \(data.count) folder Library. Semuanya dipindah ke Trash dan masih bisa dikembalikan.",
+                 "The app is \(fmt(item.size)), plus \(fmt(dataSize)) of its data, caches and settings in \(data.count) Library folders. Everything moves to the Trash and can still be restored.")
+        a.alertStyle = .warning
+        a.addButton(withTitle: data.isEmpty ? tr("Ke Trash", "Move to Trash") : tr("Uninstall semua", "Uninstall everything")).hasDestructiveAction = true
+        if !data.isEmpty { a.addButton(withTitle: tr("Aplikasinya saja", "App only")) }
+        a.addButton(withTitle: tr("Batal", "Cancel"))
+        NSApp.activate(ignoringOtherApps: true)
+        let r = a.runModal()
+        let targets: [URL]
+        switch r {
+        case .alertFirstButtonReturn: targets = [item.url] + data
+        case .alertSecondButtonReturn where !data.isEmpty: targets = [item.url]
+        default: return
+        }
+        NSWorkspace.shared.recycle(targets) { moved, error in
+            Task { @MainActor in
+                if let error, moved.isEmpty {
+                    self.result = tr("Gagal: \(error.localizedDescription)", "Failed: \(error.localizedDescription)")
+                } else {
+                    Engine.log("uninstall: \(item.url.path) plus \(moved.count - 1) folder data")
+                    withAnimation(.snappy) { self.apps.removeAll { $0.id == item.id } }
+                    self.result = tr("\(name) di-uninstall ke Trash. Kosongkan Trash supaya ruangnya kembali.", "\(name) uninstalled to the Trash. Empty the Trash to get the space back.")
                 }
             }
         }
     }
+
 
     func trashDownload(_ item: FileItem) {
         ask(tr("Pindahkan ke Trash?", "Move to the Trash?"), tr("\(item.url.lastPathComponent) (\(fmt(item.size))). Masih bisa dikembalikan dari Trash.", "\(item.url.lastPathComponent) (\(fmt(item.size))). It can still be restored from the Trash."), confirm: tr("Ke Trash", "Move to Trash")) { [self] in
@@ -571,8 +591,7 @@ final class Model: ObservableObject {
     }
 
     func showSettingsPage() {
-        if (UserDefaults.standard.string(forKey: "viewMode") ?? "sidebar") == "sidebar" { pane = .pengaturan }
-        else { showSettings = true }
+        pane = .settings
     }
 
     func emptyTrash() {
@@ -581,8 +600,13 @@ final class Model: ObservableObject {
             NSAppleScript(source: "tell application \"Finder\" to empty trash")?.executeAndReturnError(&err)
             result = err == nil ? tr("Trash dikosongkan.", "Trash emptied.") : tr("Gagal. Izinkan Lega mengontrol Finder di System Settings, Privacy & Security, Automation.", "Failed. Allow Lega to control Finder in System Settings, Privacy & Security, Automation.")
             Engine.log("lanjutan: kosongkan trash")
-            if err == nil { adv["trash"] = 0 }
-            refresh()
+            if err == nil {
+                adv["trash"] = 0
+                // Di layar Selesai, isi Trash yang baru dikosongkan pindah dari "ke Trash" ke "langsung kembali"
+                if phase == .done { lastFreed += lastMoved; lastMoved = 0 }
+                let (f, t) = Engine.disk(); withAnimation(.snappy) { free = f; total = t }
+            }
+            if phase != .done { refresh() }
         }
     }
 }
@@ -666,7 +690,7 @@ struct Ring: View {
             Circle().stroke(.quaternary, lineWidth: lineWidth)
             Circle()
                 .trim(from: 0, to: shown ? fraction : 0)
-                .stroke(low ? Color.red : accent, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .stroke(low ? AnyShapeStyle(Color.red) : AnyShapeStyle(AngularGradient(colors: Skin.current.ring + [Skin.current.ring[0]], center: .center)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(.spring(response: 0.6, dampingFraction: 0.85), value: fraction)
         }
@@ -808,278 +832,6 @@ struct HeightKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
-// MARK: - Jendela utama
-
-struct MainView: View {
-    @EnvironmentObject var m: Model
-    @AppStorage("viewMode") private var viewMode = "sidebar"
-    @AppStorage("appearance") private var appearance = "sistem"
-
-    var body: some View {
-        Group {
-            if viewMode == "sidebar" { SidebarLayout().frame(minWidth: 940, minHeight: 600) } else { classic }
-        }
-        .onChange(of: appearance) { _, a in applyAppearance(a) }
-        .sheet(isPresented: $m.showSettings) {
-            VStack(spacing: 0) {
-                SettingsView(embedded: true)
-                HStack { Spacer(); Button(tr("Selesai", "Done")) { m.showSettings = false }.keyboardShortcut(.defaultAction) }
-                    .padding([.horizontal, .bottom], 20)
-            }
-            .frame(width: 480)
-        }
-        .toolbar {
-            ToolbarItem {
-                Picker(tr("Tampilan", "Layout"), selection: $viewMode) {
-                    Image(systemName: "sidebar.left").tag("sidebar").help(tr("Tampilan sidebar", "Sidebar layout"))
-                    Image(systemName: "rectangle.grid.1x2").tag("halaman").help(tr("Tampilan satu halaman", "Single page layout"))
-                }
-                .pickerStyle(.segmented)
-                .help(tr("Pilih tampilan", "Choose a layout"))
-            }
-            ToolbarItem {
-                Menu {
-                    Picker("Mode", selection: $appearance) {
-                        Label(tr("Ikuti sistem", "Match system"), systemImage: "circle.lefthalf.filled").tag("sistem")
-                        Label(tr("Terang", "Light"), systemImage: "sun.max").tag("terang")
-                        Label(tr("Gelap", "Dark"), systemImage: "moon").tag("gelap")
-                    }
-                    .pickerStyle(.inline)
-                } label: {
-                    Image(systemName: appearance == "terang" ? "sun.max" : appearance == "gelap" ? "moon" : "circle.lefthalf.filled")
-                }
-                .help(tr("Mode terang atau gelap", "Light or dark mode"))
-            }
-            ToolbarItem {
-                Button { m.refresh() } label: { Label(tr("Pindai ulang", "Scan again"), systemImage: "arrow.clockwise") }
-                    .disabled(m.scanning || m.scanningAdv || m.busy)
-                    .help(tr("Pindai ulang", "Scan again"))
-            }
-            ToolbarItem {
-                Button { m.showSettingsPage() } label: { Label(tr("Pengaturan", "Settings"), systemImage: "gearshape") }
-                    .help(tr("Pengaturan", "Settings"))
-            }
-        }
-    }
-
-    @State private var classicH: CGFloat = 640
-
-    /// Tampilan satu halaman: lebar tetap, tinggi jendela mengikuti isi sampai setinggi layar.
-    var classic: some View {
-        let maxH = (NSScreen.main?.visibleFrame.height ?? 900) - 60
-        return ScrollViewReader { proxy in ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                LegaMark(size: 34)
-                hero
-                if m.isCritical { CriticalCard { withAnimation { proxy.scrollTo("ruang", anchor: .top) } } }
-                if m.scanningSpace { MeasuringCard() }
-                if !m.leftovers.isEmpty { LeftoverOffer() }
-                if m.suggestRestart { RestartCard() }
-                if let r = m.result { resultBanner(r) }
-                quickSection
-                advancedSection
-                leftoversSection
-                downloadsSection
-                appsSection
-                spaceSection.id("ruang")
-            }
-            .padding(28)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(GeometryReader { g in Color.clear.preference(key: HeightKey.self, value: g.size.height) })
-            .animation(.spring(response: 0.4), value: m.result)
-            .animation(.spring(response: 0.4), value: m.suggestRestart)
-            .animation(.spring(response: 0.4), value: m.scanningSpace)
-        }
-        .scrollBounceBehavior(.basedOnSize)
-        .onPreferenceChange(HeightKey.self) { classicH = $0 }
-        .frame(width: 760, height: min(max(classicH, 320), maxH))
-        .background(Color(nsColor: .windowBackgroundColor))
-        }
-    }
-
-    var hero: some View {
-        HStack(spacing: 28) {
-            ZStack {
-                Ring(fraction: m.usedFraction, low: m.isLow, lineWidth: 14)
-                VStack(spacing: 0) {
-                    Text("\(Int((m.usedFraction * 100).rounded()))%")
-                        .font(.system(size: 30, weight: .semibold, design: .rounded)).monospacedDigit()
-                    Text(tr("terpakai", "used")).font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: 132, height: 132)
-
-            VStack(alignment: .leading, spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(fmt(m.free))
-                        .font(.system(size: 40, weight: .bold, design: .rounded)).monospacedDigit()
-                        .foregroundStyle(m.isLow ? .red : .primary)
-                        .contentTransition(.numericText())
-                    Text(m.isLow ? tr("Kosong. Di bawah 10 GB, Mac bisa melambat.", "Free. Under 10 GB, a Mac can slow down.") : tr("Kosong dari \(fmt(m.total))", "Free of \(fmt(m.total))"))
-                        .foregroundStyle(.secondary)
-                }
-                Button { m.cleanQuick() } label: {
-                    HStack(spacing: 8) {
-                        if m.busy { ProgressView().controlSize(.small).tint(.white) }
-                        else { Image(systemName: "sparkles").symbolEffect(.bounce, value: m.result) }
-                        Text(m.busy ? tr("Membersihkan", "Cleaning") : tr("Bersihkan \(fmt(m.quickTotal))", "Clean \(fmt(m.quickTotal))"))
-                            .contentTransition(.numericText())
-                    }
-                    .font(.headline)
-                    .padding(.horizontal, 18).padding(.vertical, 10)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(accent)
-                .clipShape(Capsule())
-                .disabled(m.busy || m.scanning || m.quickTotal == 0)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(24)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 16))
-    }
-
-    func resultBanner(_ r: String) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: "checkmark.circle.fill").foregroundStyle(accent)
-            Text(r)
-            Spacer()
-            Button { m.result = nil } label: { Image(systemName: "xmark") }
-                .buttonStyle(.plain).foregroundStyle(.secondary)
-        }
-        .padding(14)
-        .background(accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
-        .transition(.move(edge: .top).combined(with: .opacity))
-    }
-
-    var quickSection: some View {
-        let visible = m.visibleQuick
-        return VStack(alignment: .leading, spacing: 10) {
-            SectionTitle(text: tr("Pembersihan cepat", "Quick clean"))
-            Text(tr("Cache yang dibuat ulang sendiri. Cache aplikasi yang sedang terbuka dilewati.", "Caches that rebuild themselves. Caches of apps that are open are skipped."))
-                .font(.callout).foregroundStyle(.secondary)
-            VStack(spacing: 0) {
-                if visible.isEmpty {
-                    HStack(spacing: 10) {
-                        IconTile(symbol: "checkmark")
-                        Text(m.scanning ? tr("Memindai cache", "Scanning caches") : tr("Semua cache sudah bersih.", "All caches are clean."))
-                        Spacer()
-                    }
-                    .padding(14)
-                }
-                ForEach(Array(visible.enumerated()), id: \.element.id) { i, t in
-                    if i > 0 { Divider().padding(.leading, 52) }
-                    HStack(spacing: 12) {
-                        TargetIcon(target: t)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(t.name)
-                            Text(m.statuses[t.id] ?? t.note).font(.caption)
-                                .foregroundStyle(m.statuses[t.id] == nil ? Color.secondary : Color.orange)
-                        }
-                        Spacer()
-                        Text(fmt(m.sizes[t.id] ?? 0)).monospacedDigit().foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal, 14).padding(.vertical, 10)
-                }
-            }
-            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
-        }
-    }
-
-    var advancedSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SectionTitle(text: tr("Opsi lanjutan", "Advanced options"))
-            Text(tr("Data yang lebih besar. Setiap tindakan meminta konfirmasi dulu.", "Larger data. Every action asks you first."))
-                .font(.callout).foregroundStyle(.secondary)
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                ForEach(m.advItems) { it in
-                    card(it.symbol, it.title, it.size, it.note, it.button, enabled: it.enabled, action: it.action)
-                }
-                if m.scanningAdv {
-                    HStack(spacing: 10) { ProgressView().controlSize(.small); Text(tr("Memindai WhatsApp", "Scanning WhatsApp")).foregroundStyle(.secondary) }
-                        .padding(16)
-                        .frame(maxWidth: .infinity, minHeight: 168)
-                        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
-                }
-            }
-        }
-        .disabled(m.busy)
-    }
-
-    func card(_ symbol: String, _ title: String, _ size: Int64?, _ note: String, _ button: String,
-              enabled: Bool = true, action: @escaping () -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                IconTile(symbol: symbol)
-                Spacer()
-                if let s = size {
-                    Text(fmt(s)).font(.title3.weight(.semibold)).monospacedDigit()
-                }
-            }
-            Text(title).font(.headline)
-            Text(note).font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
-            Button(button, action: action).controlSize(.regular).disabled(!enabled)
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, minHeight: 168, alignment: .topLeading)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
-    }
-
-    var leftoversSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SectionTitle(text: tr("Sisa aplikasi yang sudah dihapus", "Leftovers from removed apps"))
-            SpaceList(leftovers: true)
-        }
-    }
-
-    var spaceSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SectionTitle(text: tr("Peta ruang", "Space map"))
-            SpaceList()
-        }
-    }
-
-    var appsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SectionTitle(text: tr("Aplikasi terbesar", "Largest apps"))
-            VStack(spacing: 0) {
-                if m.apps.isEmpty {
-                    Text(m.scanningAdv ? tr("Memindai Applications", "Scanning Applications") : tr("Belum ada aplikasi yang terbaca.", "No apps found yet."))
-                        .font(.callout).foregroundStyle(.secondary).padding(14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                ForEach(Array(m.apps.enumerated()), id: \.element.id) { i, f in
-                    if i > 0 { Divider().padding(.leading, 52) }
-                    DownloadRow(item: f)
-                }
-            }
-            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
-        }
-        .disabled(m.busy)
-    }
-
-    var downloadsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SectionTitle(text: tr("Item terbesar di Downloads", "Largest items in Downloads"))
-            VStack(spacing: 0) {
-                if m.downloads.isEmpty {
-                    Text(m.scanningAdv && m.downloads.isEmpty ? tr("Memindai Downloads", "Scanning Downloads") : tr("Kosong, atau Lega belum diizinkan membaca Downloads.", "Empty, or Lega has no access to Downloads yet."))
-                        .font(.callout).foregroundStyle(.secondary).padding(14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                ForEach(Array(m.downloads.enumerated()), id: \.element.id) { i, f in
-                    if i > 0 { Divider().padding(.leading, 52) }
-                    DownloadRow(item: f)
-                }
-            }
-            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
-        }
-        .disabled(m.busy)
-    }
-}
-
 struct DownloadRow: View {
     @EnvironmentObject var m: Model
     let item: FileItem
@@ -1106,63 +858,6 @@ struct DownloadRow: View {
         .padding(.horizontal, 14).padding(.vertical, 8)
         .contentShape(Rectangle())
         .onHover { hover = $0 }
-    }
-}
-
-// MARK: - Tampilan sidebar
-
-enum Pane: Hashable { case cepat, lanjutan, downloads, aplikasi, ruang, sisa, log, pengaturan }
-
-struct SidebarLayout: View {
-    @EnvironmentObject var m: Model
-    var pane: Pane? { m.pane }
-
-    var body: some View {
-        NavigationSplitView {
-            List(selection: Binding(get: { m.pane }, set: { if let v = $0 { m.pane = v } })) {
-                LegaMark(size: 26).padding(.vertical, 6).selectionDisabled()
-                Label(tr("Cepat", "Quick"), systemImage: "sparkles").badge(m.visibleQuick.count).tag(Pane.cepat)
-                Label(tr("Lanjutan", "Advanced"), systemImage: "slider.horizontal.3").badge(m.advItems.count).tag(Pane.lanjutan)
-                Label("Downloads", systemImage: "arrow.down.circle").badge(m.downloads.count).tag(Pane.downloads)
-                Label("Applications", systemImage: "square.grid.3x3").badge(m.apps.count).tag(Pane.aplikasi)
-                Label(tr("Sisa aplikasi", "Leftovers"), systemImage: "shippingbox").badge(m.leftovers.count).tag(Pane.sisa)
-                Label(tr("Peta ruang", "Space map"), systemImage: "chart.bar.xaxis").tag(Pane.ruang)
-                Label("Log", systemImage: "list.bullet.rectangle").tag(Pane.log)
-                Section {
-                    Label(tr("Pengaturan", "Settings"), systemImage: "gearshape").tag(Pane.pengaturan)
-                }
-            }
-            .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 240)
-        } detail: {
-            Group {
-                switch pane ?? .cepat {
-                case .cepat: QuickPane()
-                case .lanjutan: AdvancedPane()
-                case .downloads: DownloadsPane()
-                case .aplikasi: DownloadsPane(apps: true)
-                case .ruang: SpacePane()
-                case .sisa: SpacePane(leftovers: true)
-                case .log: LogPane()
-                case .pengaturan: ScrollView { SettingsView(embedded: true).padding(8) }
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(Color(nsColor: .textBackgroundColor))
-        }
-        .navigationTitle(title)
-    }
-
-    var title: String {
-        switch pane ?? .cepat {
-        case .cepat: tr("Pembersihan cepat", "Quick clean")
-        case .lanjutan: tr("Opsi lanjutan", "Advanced options")
-        case .downloads: "Downloads"
-        case .aplikasi: "Applications"
-        case .ruang: tr("Peta ruang", "Space map")
-        case .sisa: tr("Sisa aplikasi yang sudah dihapus", "Leftovers from removed apps")
-        case .log: "Log"
-        case .pengaturan: tr("Pengaturan", "Settings")
-        }
     }
 }
 
@@ -1194,170 +889,6 @@ struct ResultChip: View {
         }
         .padding(12)
         .background(accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
-    }
-}
-
-struct QuickPane: View {
-    @EnvironmentObject var m: Model
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                HStack(spacing: 20) {
-                    ZStack {
-                        Ring(fraction: m.usedFraction, low: m.isLow, lineWidth: 8)
-                        Text("\(Int((m.usedFraction * 100).rounded()))%")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded)).monospacedDigit()
-                    }
-                    .frame(width: 68, height: 68)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(fmt(m.free))
-                            .font(.system(size: 30, weight: .bold, design: .rounded)).monospacedDigit()
-                            .foregroundStyle(m.isLow ? .red : .primary)
-                            .contentTransition(.numericText())
-                        Text(m.isLow ? tr("Kosong. Di bawah 10 GB, Mac bisa melambat.", "Free. Under 10 GB, a Mac can slow down.") : tr("kosong dari \(fmt(m.total))", "free of \(fmt(m.total))"))
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .layoutPriority(0)
-                    Spacer(minLength: 8)
-                    Button { m.cleanQuick() } label: {
-                        HStack(spacing: 8) {
-                            if m.busy { ProgressView().controlSize(.small).tint(.white) }
-                            else { Image(systemName: "sparkles").symbolEffect(.bounce, value: m.result) }
-                            Text(m.busy ? tr("Membersihkan", "Cleaning") : tr("Bersihkan \(fmt(m.quickTotal))", "Clean \(fmt(m.quickTotal))"))
-                                .contentTransition(.numericText())
-                        }
-                        .font(.headline)
-                        .padding(.horizontal, 16).padding(.vertical, 8)
-                        .fixedSize()
-                    }
-                    .buttonStyle(.borderedProminent).tint(accent).clipShape(Capsule())
-                    .disabled(m.busy || m.scanning || m.quickTotal == 0)
-                }
-                .padding(20)
-                .background(RoundedRectangle(cornerRadius: 16).fill(Color(nsColor: .controlBackgroundColor)))
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.08)))
-
-                if m.isCritical { CriticalCard { m.pane = .ruang } }
-                if m.scanningSpace { MeasuringCard() }
-                if !m.leftovers.isEmpty { LeftoverOffer() }
-                if m.suggestRestart { RestartCard() }
-                if let r = m.result { ResultChip(text: r).transition(.scale(scale: 0.96).combined(with: .opacity)) }
-                if m.scanning { ScanChip(text: tr("Memindai cache", "Scanning caches")).transition(.opacity) }
-
-                VStack(spacing: 0) {
-                    if m.visibleQuick.isEmpty && !m.scanning {
-                        Text(tr("Semua cache sudah bersih.", "All caches are clean.")).foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading).padding(16)
-                    }
-                    ForEach(Array(m.visibleQuick.enumerated()), id: \.element.id) { i, t in
-                        if i > 0 { Divider() }
-                        HStack(spacing: 14) {
-                            TargetIcon(target: t)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(t.name).font(.body.weight(.medium))
-                                Text(m.statuses[t.id] ?? t.note).font(.callout)
-                                    .foregroundStyle(m.statuses[t.id] == nil ? Color.secondary : Color.orange)
-                            }
-                            Spacer()
-                            Text(fmt(m.sizes[t.id] ?? 0)).monospacedDigit().foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 16).padding(.vertical, 12)
-                        .transition(.move(edge: .leading).combined(with: .opacity))
-                    }
-                }
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.08)))
-                .animation(.spring(response: 0.45, dampingFraction: 0.85), value: m.visibleQuick.map(\.id))
-                Text(tr("Cache yang dibuat ulang sendiri. Cache aplikasi yang sedang terbuka dilewati.", "Caches that rebuild themselves. Caches of apps that are open are skipped."))
-                    .font(.callout).foregroundStyle(.secondary)
-            }
-            .padding(24)
-            .animation(.spring(response: 0.4), value: m.result)
-            .animation(.spring(response: 0.4), value: m.scanning)
-            .animation(.spring(response: 0.4), value: m.scanningSpace)
-        }
-    }
-}
-
-struct AdvancedPane: View {
-    @EnvironmentObject var m: Model
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                if let r = m.result { ResultChip(text: r) }
-                if m.scanningAdv { ScanChip(text: tr("Memindai data besar", "Scanning large data")) }
-                VStack(spacing: 0) {
-                    ForEach(Array(m.advItems.enumerated()), id: \.element.id) { i, it in
-                        if i > 0 { Divider() }
-                        HStack(spacing: 14) {
-                            Avatar(initials: it.initials)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(it.title).font(.body.weight(.medium))
-                                Text(it.short).font(.callout).foregroundStyle(.secondary)
-                            }
-                            .help(it.note)
-                            Spacer()
-                            if let s = it.size { Text(fmt(s)).monospacedDigit().foregroundStyle(.secondary) }
-                            Button(it.button, action: it.action)
-                                .buttonStyle(PillButtonStyle(prominent: it.prominent))
-                                .disabled(!it.enabled || m.busy)
-                        }
-                        .padding(.horizontal, 16).padding(.vertical, 12)
-                    }
-                }
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.08)))
-                Text(tr("Setiap tindakan meminta konfirmasi dulu.", "Every action asks you first.")).font(.callout).foregroundStyle(.secondary)
-            }
-            .padding(24)
-        }
-    }
-}
-
-struct DownloadsPane: View {
-    @EnvironmentObject var m: Model
-    var apps = false
-    @AppStorage("downloadsLayout") private var layout = "grid"
-    var items: [FileItem] { apps ? m.apps : m.downloads }
-    var emptyText: String { apps ? tr("Belum ada aplikasi yang terbaca.", "No apps found yet.") : tr("Kosong, atau Lega belum diizinkan membaca Downloads.", "Empty, or Lega has no access to Downloads yet.") }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Text(apps ? tr("\(items.count) aplikasi terbesar", "\(items.count) largest apps") : tr("\(items.count) item terbesar", "\(items.count) largest items")).foregroundStyle(.secondary)
-                    Spacer()
-                    Picker(tr("Susunan", "Arrangement"), selection: $layout) {
-                        Image(systemName: "square.grid.2x2").tag("grid").help("Grid")
-                        Image(systemName: "list.bullet").tag("list").help("List")
-                    }
-                    .pickerStyle(.segmented).labelsHidden().fixedSize()
-                }
-                if let r = m.result { ResultChip(text: r) }
-                if m.scanningAdv && items.isEmpty { ScanChip(text: apps ? tr("Memindai Applications", "Scanning Applications") : tr("Memindai Downloads", "Scanning Downloads")) }
-                if items.isEmpty && !m.scanningAdv {
-                    Text(emptyText).foregroundStyle(.secondary)
-                }
-                if layout == "grid" {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 14)], spacing: 14) {
-                        ForEach(items) { FileTile(item: $0) }
-                    }
-                    .transition(.opacity)
-                } else if !items.isEmpty {
-                    VStack(spacing: 0) {
-                        ForEach(Array(items.enumerated()), id: \.element.id) { i, f in
-                            if i > 0 { Divider() }
-                            DownloadRow(item: f).padding(.vertical, 4)
-                        }
-                    }
-                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.08)))
-                    .transition(.opacity)
-                }
-            }
-            .padding(24)
-            .animation(.easeInOut(duration: 0.2), value: layout)
-        }
     }
 }
 
@@ -1463,29 +994,16 @@ struct MenuBarPanel: View {
             .disabled(m.busy || m.scanning || m.quickTotal == 0)
             if let r = m.result { Text(r).font(.caption).foregroundStyle(.secondary) }
 
-            Divider()
-            Text(tr("Opsi lanjutan", "Advanced options")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            ForEach(m.advItems.prefix(5)) { it in
-                HStack(spacing: 10) {
-                    Avatar(initials: it.initials, size: 26)
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(it.title).font(.callout).lineLimit(1)
-                        if let s = it.size { Text(fmt(s)).font(.caption).foregroundStyle(.secondary).monospacedDigit() }
-                    }
-                    Spacer(minLength: 6)
-                    Button(it.button, action: it.action)
-                        .buttonStyle(PillButtonStyle(prominent: it.prominent))
-                        .disabled(!it.enabled || m.busy)
-                }
-                .help(it.note)
+            Button { open(.home); m.startScan() } label: {
+                Label(tr("Scan lengkap di Lega", "Full scan in Lega"), systemImage: "magnifyingglass")
             }
-
+            .buttonStyle(.link).font(.callout)
             Divider()
             HStack(spacing: 8) {
                 Button { open(nil) } label: { Label(tr("Buka Lega", "Open Lega"), systemImage: "macwindow") }
                     .buttonStyle(.bordered)
                 Spacer()
-                Button { open(.pengaturan) } label: { Image(systemName: "gearshape") }
+                Button { open(.settings) } label: { Image(systemName: "gearshape") }
                     .buttonStyle(.borderless).help(tr("Pengaturan", "Settings"))
                 Button { NSApp.terminate(nil) } label: { Image(systemName: "power") }
                     .buttonStyle(.borderless).help(tr("Keluar", "Quit"))
@@ -1500,7 +1018,7 @@ struct MenuBarPanel: View {
     func open(_ pane: Pane?) {
         openWindow(id: "main")
         NSApp.activate(ignoringOtherApps: true)
-        if pane == .pengaturan { m.showSettingsPage() } else if let p = pane { m.pane = p }
+        if pane == .settings { m.showSettingsPage() } else if let p = pane { m.pane = p }
     }
 }
 
@@ -1522,9 +1040,9 @@ struct SettingsCommand: View {
 struct SettingsView: View {
     var embedded = false
     @AppStorage("showMenuBar") private var showMenuBar = true
-    @AppStorage("viewMode") private var viewMode = "sidebar"
     @AppStorage("appearance") private var appearance = "sistem"
     @AppStorage("language") private var language = "en"
+    @AppStorage("skin") private var skin = "sage"
     @AppStorage("accessAsked") private var accessAsked = false
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
@@ -1535,15 +1053,12 @@ struct SettingsView: View {
                 Text("English").tag("en")
                 Text("Bahasa Indonesia").tag("id")
             }
-            Picker(tr("Tampilan", "Layout"), selection: $viewMode) {
-                Text("Sidebar").tag("sidebar")
-                Text(tr("Satu halaman", "Single page")).tag("halaman")
-            }
             Picker("Mode", selection: $appearance) {
                 Text(tr("Ikuti sistem", "Match system")).tag("sistem")
                 Text(tr("Terang", "Light")).tag("terang")
                 Text(tr("Gelap", "Dark")).tag("gelap")
             }
+            LabeledContent(tr("Tampilan warna", "Skin")) { SkinPicker() }
             Toggle(tr("Buka saat Mac menyala", "Open at login"), isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, on in setLogin(on) }
             Toggle(tr("Tampilkan di menu bar", "Show in menu bar"), isOn: $showMenuBar)
@@ -1595,6 +1110,7 @@ struct LegaApp: App {
     @AppStorage("didSetupLogin") private var didSetupLogin = false
     @AppStorage("appearance") private var appearance = "sistem"
     @AppStorage("language") private var language = "en"
+    @AppStorage("skin") private var skin = "sage"
 
     init() {
         // Peluncuran pertama: daftarkan sebagai login item, sesuai default produk
@@ -1607,7 +1123,7 @@ struct LegaApp: App {
     var body: some Scene {
         Window("Lega", id: "main") {
             MainView().environmentObject(m)
-                .id(language)   // bangun ulang semua teks saat bahasa diganti
+                .id(language + skin)   // bangun ulang semua teks dan warna saat bahasa atau skin diganti
                 .sheet(isPresented: Binding(get: { !accessAsked && !Access.hasFullDisk && !m.demo }, set: { if !$0 { accessAsked = true } })) {
                     AccessSheet().environmentObject(m)
                 }
@@ -1620,7 +1136,7 @@ struct LegaApp: App {
         .defaultLaunchBehavior(showMenuBar && wasLaunchedAtLogin ? .suppressed : .presented)
 
         MenuBarExtra(isInserted: $showMenuBar) {
-            MenuBarPanel().environmentObject(m).id(language).preferredColorScheme(scheme(appearance))
+            MenuBarPanel().environmentObject(m).id(language + skin).preferredColorScheme(scheme(appearance))
         } label: {
             Image(systemName: m.busy ? "sparkles.rectangle.stack" : m.scanningSpace ? "magnifyingglass" : "sparkles")
         }

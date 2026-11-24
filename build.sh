@@ -21,6 +21,8 @@ lipo -create build/Lega-arm64 build/Lega-x86_64 -output "$BIN"
 rm build/Lega-arm64 build/Lega-x86_64
 
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
+# Ilustrasi skin untuk Beranda
+if [ -d Resources/Skins ]; then mkdir -p "$APP/Contents/Resources/Skins"; cp Resources/Skins/*.jpg "$APP/Contents/Resources/Skins/" 2>/dev/null || true; fi
 
 cat > "$APP/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>

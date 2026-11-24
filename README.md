@@ -17,13 +17,17 @@ Open the DMG and drag Lega to Applications. Lega is not yet signed with an Apple
 
 ## Features
 
-- **One-button quick clean.** Browser caches (including Arc, Chrome, and Comet Service Workers), Zoom, Homebrew, npm, pip, uv, Go, node-gyp, Clang and Swift compiler caches, pending update downloads, and old Codex versions.
-- **Safe with open apps.** Caches of apps that are still running are skipped, so you don't need to restart your Mac.
-- **Advanced options with confirmation.** WhatsApp media, Claude Desktop VM, Office AutoRecovery files, Playwright browsers, Trash, orphaned Microsoft AutoUpdate, and the largest items in Downloads.
-- **Largest Applications.** The twelve largest apps, which you can move to Trash after confirming.
+- **One Scan, one Clean.** Scan measures caches, app leftovers, the Trash, large files and app data. You get one list of categories with their sizes, tick what you want, and press Clean once.
+- **Risk is always visible.** Each category is marked Safe, Review, or In the app. Only Safe items and app leftovers are ticked by default.
+- **Caches.** Browser caches (including Arc, Chrome, and Comet Service Workers), Zoom, Homebrew, npm, pip, uv, Go, node-gyp, Clang and Swift compiler caches, pending update downloads, and old Codex versions. Caches of apps that are open are skipped.
+- **App leftovers.** Folders over 100 MB left behind by apps you removed, which no installed app uses and which have not changed for 14 days. Each one can be unticked or shown in Finder first.
+- **Clean uninstall.** Uninstalling an app also removes its data, caches and settings in Library, in one confirmation.
+- **Large files.** The largest items in Downloads, as a list or a grid, to tick and include in Clean.
+- **App data.** WhatsApp media (tidied in WhatsApp itself), Claude Desktop VM, Office AutoRecovery files, Playwright browsers, and orphaned Microsoft AutoUpdate.
+- **Space map.** The largest folders in your home, including data Lega never deletes on its own.
+- **One permission, once.** A welcome screen asks for Full Disk Access once, instead of a prompt per folder.
 - **Restart suggestion.** Appears when disk swap exceeds 2 GB or your Mac has been on for three days.
-- **English and Bahasa Indonesia.** English by default, switchable in Settings.
-- **Two layouts.** Sidebar or single page, with light, dark, or system appearance.
+- **English and Bahasa Indonesia**, with light, dark, or system appearance.
 - **Menu bar.** See free space and clean caches without opening a window.
 - **Runs at login.** Can be turned off in Settings.
 - **Logged.** Every clean is written to `~/Library/Logs/Lega.log`.

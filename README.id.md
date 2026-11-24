@@ -17,13 +17,17 @@ Buka DMG, lalu seret Lega ke Applications. Lega belum ditandatangani Developer I
 
 ## Fitur
 
-- **Pembersihan cepat, satu tombol.** Cache browser (termasuk Service Worker Arc, Chrome, dan Comet), Zoom, Homebrew, npm, pip, uv, Go, node-gyp, cache compiler Clang dan Swift, unduhan update yang tertunda, dan versi lama Codex.
-- **Aman untuk aplikasi yang sedang terbuka.** Cache milik aplikasi yang masih berjalan dilewati, jadi Anda tidak perlu restart Mac.
-- **Opsi lanjutan dengan konfirmasi.** Media WhatsApp, VM Claude Desktop, file AutoRecovery Office, browser Playwright, Trash, Microsoft AutoUpdate yang sudah yatim, dan item terbesar di Downloads.
-- **Applications terbesar.** Dua belas aplikasi terbesar, bisa dipindah ke Trash dengan konfirmasi.
+- **Satu Scan, satu Clean.** Scan mengukur cache, sisa aplikasi, Trash, file besar, dan data aplikasi. Hasilnya satu daftar kategori beserta ukurannya. Centang yang Anda mau, lalu tekan Clean sekali.
+- **Risiko selalu terlihat.** Setiap kategori bertanda Aman, Periksa dulu, atau Lewat aplikasinya. Yang tercentang default hanya yang Aman dan sisa aplikasi.
+- **Cache.** Cache browser (termasuk Service Worker Arc, Chrome, dan Comet), Zoom, Homebrew, npm, pip, uv, Go, node-gyp, cache compiler Clang dan Swift, unduhan update yang tertunda, dan versi lama Codex. Cache milik aplikasi yang sedang terbuka dilewati.
+- **Sisa aplikasi.** Folder di atas 100 MB peninggalan aplikasi yang sudah Anda hapus, yang tidak dipakai aplikasi terpasang mana pun dan tidak berubah selama 14 hari. Tiap folder bisa dihilangkan centangnya atau dibuka di Finder dulu.
+- **Uninstall bersih.** Uninstall aplikasi ikut membuang data, cache, dan pengaturannya di Library, dalam satu konfirmasi.
+- **File besar.** Item terbesar di Downloads, sebagai daftar atau grid, untuk dicentang dan ikut dibersihkan.
+- **Data aplikasi.** Media WhatsApp (dirapikan lewat WhatsApp), VM Claude Desktop, file AutoRecovery Office, browser Playwright, dan Microsoft AutoUpdate yang sudah yatim.
+- **Peta ruang.** Folder terbesar di home Anda, termasuk data yang tidak pernah dihapus Lega sendiri.
+- **Satu izin, sekali saja.** Layar sambutan meminta Full Disk Access sekali, menggantikan izin per folder.
 - **Saran restart.** Muncul saat swap di disk melewati 2 GB atau Mac sudah menyala tiga hari.
-- **English dan Bahasa Indonesia.** English sebagai default, bisa diganti di Pengaturan.
-- **Dua tampilan.** Sidebar atau satu halaman, dengan mode terang, gelap, atau ikuti sistem.
+- **English dan Bahasa Indonesia**, dengan mode terang, gelap, atau ikuti sistem.
 - **Menu bar.** Lihat ruang kosong dan bersihkan cache tanpa membuka jendela.
 - **Berjalan saat Mac menyala.** Bisa dimatikan di Pengaturan.
 - **Tercatat.** Setiap pembersihan ditulis ke `~/Library/Logs/Lega.log`.

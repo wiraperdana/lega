@@ -188,7 +188,8 @@ extension Model {
             await MainActor.run {
                 withAnimation(.snappy) { self.space = Array(r.map.prefix(15)); self.leftovers = r.leftovers }
                 self.scanningSpace = false
-                if self.offerAfterClean { self.offerAfterClean = false; self.offerLeftovers() }
+                self.spaceScannedAt = Date()
+                if self.phase == .scanning && !self.scanningAdv { withAnimation(.spring(response: 0.5)) { self.phase = .results } }
             }
         }
     }
@@ -202,39 +203,6 @@ extension Model {
 }
 
 // MARK: - Tampilan
-
-/// Peringatan saat disk hampir penuh, langsung menunjuk pemakai ruang terbesar.
-struct CriticalCard: View {
-    @EnvironmentObject var m: Model
-    var openMap: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red).font(.title3)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(tr("Disk hampir penuh", "Your disk is almost full")).font(.headline)
-                Text(message).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 8)
-            Button(tr("Lihat peta ruang", "See where space goes"), action: openMap)
-                .buttonStyle(PillButtonStyle(prominent: true)).fixedSize()
-        }
-        .padding(14)
-        .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.red.opacity(0.25)))
-    }
-
-    var message: String {
-        let top = m.space.prefix(3).map { "\($0.name) \(fmt($0.size))" }.joined(separator: ", ")
-        var s = top.isEmpty
-            ? tr("Cache saja tidak cukup. Lega sedang mencari pemakai ruang terbesar.", "Caches alone are not enough. Lega is looking for what uses the most space.")
-            : tr("Cache saja tidak cukup. Ruang terbesar dipakai: \(top).", "Caches alone are not enough. The most space goes to \(top).")
-        if m.leftoverTotal > 0 {
-            s += tr(" Sisa aplikasi yang sudah dihapus: \(fmt(m.leftoverTotal)).", " Leftovers from removed apps: \(fmt(m.leftoverTotal)).")
-        }
-        return s
-    }
-}
 
 struct SpaceRow: View {
     @EnvironmentObject var m: Model
@@ -331,28 +299,6 @@ struct SpacePane: View {
 // MARK: - Tawaran sisa aplikasi di Quick clean
 
 extension Model {
-    /// Tawaran langsung setelah Clean: buang semua, lihat dulu, atau lewati.
-    func offerLeftovers() {
-        guard !leftovers.isEmpty else { return }
-        NSApp.activate(ignoringOtherApps: true)
-        let a = NSAlert()
-        a.messageText = tr("Hemat \(fmt(leftoverTotal)) lagi?", "Free \(fmt(leftoverTotal)) more?")
-        a.informativeText = tr("Cache sudah dibersihkan. Lega juga menemukan data \(leftovers.count) aplikasi yang sudah Anda hapus. Semuanya dipindah ke Trash, jadi masih bisa dikembalikan.",
-                               "Caches are clean. Lega also found data from \(leftovers.count) apps you removed. Everything moves to the Trash, so it can still be restored.")
-        a.addButton(withTitle: tr("Lihat dulu", "Review first"))
-        a.addButton(withTitle: tr("Ke Trash semua", "Move all to Trash"))
-        a.addButton(withTitle: tr("Nanti saja", "Not now"))
-        switch a.runModal() {
-        case .alertFirstButtonReturn:
-            offerExpanded = true
-            if (UserDefaults.standard.string(forKey: "viewMode") ?? "sidebar") == "sidebar" { pane = .cepat }
-        case .alertSecondButtonReturn:
-            leftoverSkip = []
-            removeLeftovers(leftovers)
-        default: break
-        }
-    }
-
     var leftoverChosen: [SpaceItem] { leftovers.filter { !leftoverSkip.contains($0.id) } }
 
     /// Satu konfirmasi untuk semua sisa aplikasi yang dicentang.
@@ -366,137 +312,6 @@ extension Model {
             tr("\(fmt(total)) dari aplikasi yang sudah dihapus:\n\n\(list)\n\nMasih bisa dikembalikan dari Trash.",
                "\(fmt(total)) from apps you removed:\n\n\(list)\n\nThey can still be restored from the Trash."),
             confirm: tr("Ke Trash", "Move to Trash")) { [self] in removeLeftovers(items) }
-    }
-}
-
-/// Kartu di Quick clean: berapa yang bisa dihemat dari sisa aplikasi, dan rinciannya bila dibuka.
-struct LeftoverOffer: View {
-    @EnvironmentObject var m: Model
-
-    var chosenTotal: Int64 { m.leftoverChosen.reduce(0) { $0 + $1.size } }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                Image(systemName: "shippingbox").font(.title3).foregroundStyle(accent)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(tr("Hemat \(fmt(m.leftoverTotal)) lagi dari sisa aplikasi", "Free \(fmt(m.leftoverTotal)) more from app leftovers")).font(.headline)
-                    Text(tr("Data \(m.leftovers.count) aplikasi yang sudah Anda hapus masih tertinggal.", "Data from \(m.leftovers.count) apps you removed is still here."))
-                        .font(.callout).foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 8)
-                Button { withAnimation(.snappy) { m.offerExpanded.toggle() } } label: {
-                    Label(m.offerExpanded ? tr("Sembunyikan", "Hide") : tr("Lihat isinya", "See what's included"),
-                          systemImage: m.offerExpanded ? "chevron.up" : "chevron.down")
-                }
-                .buttonStyle(.borderless).fixedSize()
-                Button(tr("Ke Trash \(fmt(chosenTotal))", "Move \(fmt(chosenTotal)) to Trash")) { m.trashLeftovers() }
-                    .buttonStyle(PillButtonStyle(prominent: true)).fixedSize()
-                    .disabled(m.busy || m.leftoverChosen.isEmpty)
-            }
-            if m.offerExpanded {
-                VStack(spacing: 0) {
-                    ForEach(Array(m.leftovers.enumerated()), id: \.element.id) { i, it in
-                        if i > 0 { Divider().padding(.leading, 40) }
-                        HStack(spacing: 10) {
-                            Toggle("", isOn: Binding(
-                                get: { !m.leftoverSkip.contains(it.id) },
-                                set: { on in if on { m.leftoverSkip.remove(it.id) } else { m.leftoverSkip.insert(it.id) } }))
-                                .toggleStyle(.checkbox).labelsHidden()
-                            Image(nsImage: NSWorkspace.shared.icon(forFile: it.url.path)).resizable().frame(width: 20, height: 20)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(it.name).lineLimit(1)
-                                Text("\(it.place)/\(it.url.lastPathComponent)").font(.caption).foregroundStyle(.secondary)
-                                    .lineLimit(1).truncationMode(.middle)
-                            }
-                            Spacer()
-                            Button { NSWorkspace.shared.activateFileViewerSelecting([it.url]) } label: { Image(systemName: "magnifyingglass") }
-                                .buttonStyle(.borderless).help(tr("Tampilkan di Finder", "Show in Finder"))
-                            Text(fmt(it.size)).monospacedDigit().foregroundStyle(.secondary).frame(minWidth: 70, alignment: .trailing)
-                        }
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                    }
-                }
-                .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.03)))
-                Text(tr("Hilangkan centang pada data yang masih Anda butuhkan. Semuanya dipindah ke Trash, jadi masih bisa dikembalikan.",
-                        "Untick anything you still need. Everything moves to the Trash, so it can still be restored."))
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-        }
-        .padding(16)
-        .background(accent.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(accent.opacity(0.25)))
-    }
-}
-
-extension Engine {
-    /// Pindahkan ke Trash satu per satu, catat hasilnya. Bila Trash menolak (misalnya disk 0 byte
-    /// atau folder dilindungi macOS), alasannya dikembalikan supaya bisa ditawarkan hapus permanen.
-    static func moveToTrash(_ items: [SpaceItem]) -> (done: [SpaceItem], failed: [(SpaceItem, String)]) {
-        var done: [SpaceItem] = [], failed: [(SpaceItem, String)] = []
-        for it in items {
-            do { try fm.trashItem(at: it.url, resultingItemURL: nil); done.append(it); log("sisa aplikasi: trash \(it.url.path)") }
-            catch { failed.append((it, error.localizedDescription)); log("sisa aplikasi: gagal trash \(it.url.path): \(error.localizedDescription)") }
-        }
-        return (done, failed)
-    }
-
-    static func deleteForever(_ items: [SpaceItem]) -> (done: [SpaceItem], failed: [(SpaceItem, String)]) {
-        var done: [SpaceItem] = [], failed: [(SpaceItem, String)] = []
-        for it in items {
-            do { try fm.removeItem(at: it.url); done.append(it); log("sisa aplikasi: hapus permanen \(it.url.path)") }
-            catch { failed.append((it, error.localizedDescription)); log("sisa aplikasi: gagal hapus \(it.url.path): \(error.localizedDescription)") }
-        }
-        return (done, failed)
-    }
-}
-
-extension Model {
-    /// Jalur bersama untuk satu folder maupun banyak: Trash dulu, lalu tawarkan hapus permanen bila gagal.
-    func removeLeftovers(_ items: [SpaceItem]) {
-        busy = true
-        Task.detached {
-            let r = Engine.moveToTrash(items)
-            await MainActor.run { self.finishLeftovers(r, permanent: false) }
-        }
-    }
-
-    func finishLeftovers(_ r: (done: [SpaceItem], failed: [(SpaceItem, String)]), permanent: Bool) {
-        let gone = Set(r.done.map(\.id))
-        withAnimation(.snappy) {
-            leftovers.removeAll { gone.contains($0.id) }
-            space.removeAll { gone.contains($0.id) }
-        }
-        let freed = r.done.reduce(0) { $0 + $1.size }
-        if !permanent, let t = adv["trash"], t >= 0 { adv["trash"] = t + freed }
-        busy = false
-        if r.failed.isEmpty {
-            result = permanent
-                ? tr("\(fmt(freed)) dihapus permanen.", "\(fmt(freed)) deleted permanently.")
-                : tr("\(fmt(freed)) dipindah ke Trash. Kosongkan Trash supaya ruangnya kembali.", "\(fmt(freed)) moved to the Trash. Empty the Trash to get the space back.")
-            Task { @MainActor in let (f, t) = Engine.disk(); withAnimation(.snappy) { self.free = f; self.total = t } }
-            return
-        }
-        let bad = r.failed.map(\.0)
-        let why = r.failed.first?.1 ?? ""
-        if permanent {
-            result = tr("\(bad.count) folder gagal dihapus: \(why)", "\(bad.count) folders could not be deleted: \(why)")
-            return
-        }
-        let total = bad.reduce(0) { $0 + $1.size }
-        ask(tr("Trash menolak \(bad.count) folder", "The Trash refused \(bad.count) folders"),
-            tr("Alasan dari macOS: \(why)\n\nIni biasa terjadi saat disk benar-benar penuh. Hapus permanen \(fmt(total)) sekarang? Langkah ini tidak bisa dibatalkan.",
-               "macOS said: \(why)\n\nThis often happens when the disk is completely full. Delete \(fmt(total)) permanently now? This cannot be undone."),
-            confirm: tr("Hapus permanen", "Delete permanently")) { [self] in
-            busy = true
-            Task.detached {
-                let r2 = Engine.deleteForever(bad)
-                await MainActor.run { self.finishLeftovers(r2, permanent: true) }
-            }
-        }
-        if !r.done.isEmpty && result == nil {
-            result = tr("\(fmt(freed)) dipindah ke Trash.", "\(fmt(freed)) moved to the Trash.")
-        }
     }
 }
 
@@ -578,3 +393,74 @@ struct MeasuringCard: View {
         .transition(.move(edge: .top).combined(with: .opacity))
     }
 }
+extension Engine {
+    /// Pindahkan ke Trash satu per satu, catat hasilnya. Bila Trash menolak (misalnya disk 0 byte
+    /// atau folder dilindungi macOS), alasannya dikembalikan supaya bisa ditawarkan hapus permanen.
+    static func moveToTrash(_ items: [SpaceItem]) -> (done: [SpaceItem], failed: [(SpaceItem, String)]) {
+        var done: [SpaceItem] = [], failed: [(SpaceItem, String)] = []
+        for it in items {
+            do { try fm.trashItem(at: it.url, resultingItemURL: nil); done.append(it); log("sisa aplikasi: trash \(it.url.path)") }
+            catch { failed.append((it, error.localizedDescription)); log("sisa aplikasi: gagal trash \(it.url.path): \(error.localizedDescription)") }
+        }
+        return (done, failed)
+    }
+
+    static func deleteForever(_ items: [SpaceItem]) -> (done: [SpaceItem], failed: [(SpaceItem, String)]) {
+        var done: [SpaceItem] = [], failed: [(SpaceItem, String)] = []
+        for it in items {
+            do { try fm.removeItem(at: it.url); done.append(it); log("sisa aplikasi: hapus permanen \(it.url.path)") }
+            catch { failed.append((it, error.localizedDescription)); log("sisa aplikasi: gagal hapus \(it.url.path): \(error.localizedDescription)") }
+        }
+        return (done, failed)
+    }
+}
+
+extension Model {
+    /// Jalur bersama untuk satu folder maupun banyak: Trash dulu, lalu tawarkan hapus permanen bila gagal.
+    func removeLeftovers(_ items: [SpaceItem]) {
+        busy = true
+        Task.detached {
+            let r = Engine.moveToTrash(items)
+            await MainActor.run { self.finishLeftovers(r, permanent: false) }
+        }
+    }
+
+    func finishLeftovers(_ r: (done: [SpaceItem], failed: [(SpaceItem, String)]), permanent: Bool) {
+        let gone = Set(r.done.map(\.id))
+        withAnimation(.snappy) {
+            leftovers.removeAll { gone.contains($0.id) }
+            space.removeAll { gone.contains($0.id) }
+        }
+        let freed = r.done.reduce(0) { $0 + $1.size }
+        if !permanent, let t = adv["trash"], t >= 0 { adv["trash"] = t + freed }
+        busy = false
+        if r.failed.isEmpty {
+            result = permanent
+                ? tr("\(fmt(freed)) dihapus permanen.", "\(fmt(freed)) deleted permanently.")
+                : tr("\(fmt(freed)) dipindah ke Trash. Kosongkan Trash supaya ruangnya kembali.", "\(fmt(freed)) moved to the Trash. Empty the Trash to get the space back.")
+            Task { @MainActor in let (f, t) = Engine.disk(); withAnimation(.snappy) { self.free = f; self.total = t } }
+            return
+        }
+        let bad = r.failed.map(\.0)
+        let why = r.failed.first?.1 ?? ""
+        if permanent {
+            result = tr("\(bad.count) folder gagal dihapus: \(why)", "\(bad.count) folders could not be deleted: \(why)")
+            return
+        }
+        let total = bad.reduce(0) { $0 + $1.size }
+        ask(tr("Trash menolak \(bad.count) folder", "The Trash refused \(bad.count) folders"),
+            tr("Alasan dari macOS: \(why)\n\nIni biasa terjadi saat disk benar-benar penuh. Hapus permanen \(fmt(total)) sekarang? Langkah ini tidak bisa dibatalkan.",
+               "macOS said: \(why)\n\nThis often happens when the disk is completely full. Delete \(fmt(total)) permanently now? This cannot be undone."),
+            confirm: tr("Hapus permanen", "Delete permanently")) { [self] in
+            busy = true
+            Task.detached {
+                let r2 = Engine.deleteForever(bad)
+                await MainActor.run { self.finishLeftovers(r2, permanent: true) }
+            }
+        }
+        if !r.done.isEmpty && result == nil {
+            result = tr("\(fmt(freed)) dipindah ke Trash.", "\(fmt(freed)) moved to the Trash.")
+        }
+    }
+}
+
