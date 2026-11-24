@@ -51,6 +51,8 @@ cd lega
 
 This script compiles the app for Apple Silicon and Intel, then installs it to `~/Applications`. Use `./build.sh --no-install` to build only.
 
+Run `Scripts/make-cert.sh` once before your first build. It creates a self-signed "Lega Developer" certificate in your login keychain, so every build keeps the same identity and macOS asks for permissions only once. Without it, builds are signed ad-hoc and macOS asks again after each build.
+
 The built app is signed locally (ad-hoc), without an Apple Developer ID. It works right away on the Mac where you built it. If you copy the `.app` to another Mac, Gatekeeper blocks it the first time. Open System Settings, Privacy & Security, then click Open Anyway.
 
 To make the Apple Silicon and Intel DMGs, run `./build.sh --no-install` then `Scripts/make-dmg.sh`. The output goes to `build/dmg/`.

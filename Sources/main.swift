@@ -182,6 +182,24 @@ enum Engine {
         return mauInstalled() ? tr("Sebagian file MAU masih tersisa.", "Some MAU files are still there.") : tr("Microsoft AutoUpdate sudah dihapus.", "Microsoft AutoUpdate has been removed.")
     }
 
+    /// Cadangan bila macOS menolak Lega membaca ~/.Trash: tanya Finder, yang sudah diizinkan untuk Kosongkan Trash.
+    @MainActor static func trashSizeViaFinder() -> Int64? {
+        let src = """
+        tell application "Finder"
+            set s to 0
+            repeat with i in (items of trash)
+                try
+                    set s to s + (physical size of i)
+                end try
+            end repeat
+            return s
+        end tell
+        """
+        var err: NSDictionary?
+        guard let r = NSAppleScript(source: src)?.executeAndReturnError(&err), err == nil else { return nil }
+        return Int64(r.doubleValue)
+    }
+
     static func downloadsTop(_ n: Int) -> [FileItem] {
         let dir = url("~/Downloads")
         guard let items = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]) else { return [] }
@@ -281,6 +299,14 @@ final class Model: ObservableObject {
     @Published var showSettings = false
     @Published var swapBytes: Int64 = 0
     @Published var bootDate = Date()
+    @Published var space: [SpaceItem] = []
+    @Published var leftovers: [SpaceItem] = []
+    @Published var scanningSpace = false
+    @Published var leftoverSkip: Set<String> = []
+    @Published var offerAfterClean = false
+    @Published var offerExpanded = false
+    @Published var spaceProgress: Double = 0
+    @Published var spaceCurrent = ""
 
     var uptime: TimeInterval { Date().timeIntervalSince(bootDate) }
     /// Saran restart: swap besar, atau Mac sudah lama tidak dimatikan.
@@ -369,6 +395,10 @@ final class Model: ObservableObject {
                 let v = Engine.size(Engine.url(path))
                 await MainActor.run { self.adv[key] = v }
             }
+            // Trash dilindungi macOS. Tanpa izin baca, ukurannya dibiarkan kosong, bukan 0.
+            let trashURL = Engine.url("~/.Trash")
+            let trash: Int64? = (try? FileManager.default.contentsOfDirectory(at: trashURL, includingPropertiesForKeys: nil)) != nil ? Engine.size(trashURL) : await Engine.trashSizeViaFinder()
+            await MainActor.run { self.adv["trash"] = trash ?? -1 }
             let ar = Engine.autoRecoverFiles().reduce(0) { $0 + Engine.size($1) }
             await MainActor.run { self.adv["autorecover"] = ar }
             let dl = Engine.downloadsTop(12)
@@ -376,7 +406,7 @@ final class Model: ObservableObject {
             let ap = Engine.appsTop(12)
             await MainActor.run { self.apps = ap }
             let wa = Engine.size(Engine.url("~/Library/Group Containers/group.net.whatsapp.WhatsApp.shared"))
-            await MainActor.run { self.adv["whatsapp"] = wa; self.scanningAdv = false }
+            await MainActor.run { self.adv["whatsapp"] = wa; self.scanningAdv = false; self.scanSpace() }
         }
     }
 
@@ -419,9 +449,17 @@ final class Model: ObservableObject {
                     self.result = tr("Belum ada yang dibersihkan. \(skipped) cache dilewati karena aplikasinya terbuka.",
                                      "Nothing cleaned yet. \(skipped) cache skipped because its app is open.")
                 } else {
-                    self.result = tr("Tidak ada yang perlu dibersihkan.", "Nothing to clean.")
+                    self.result = tr("Cache sudah bersih. Lihat Sisa aplikasi dan Peta ruang untuk pemakai ruang lainnya.", "Caches are clean. See Leftovers and Space map for what else uses space.")
                 }
                 self.busy = false
+                // Setelah cache, lanjut mencari sisa aplikasi dan langsung tawarkan hasilnya
+                // Hasil pindai yang sudah ada langsung ditawarkan; kalau belum ada, pindai dulu lalu tawarkan
+                if !self.scanningSpace && !self.leftovers.isEmpty {
+                    self.offerLeftovers()
+                } else {
+                    self.offerAfterClean = true
+                    self.scanSpace()
+                }
                 self.refresh()
             }
         }
@@ -543,6 +581,7 @@ final class Model: ObservableObject {
             NSAppleScript(source: "tell application \"Finder\" to empty trash")?.executeAndReturnError(&err)
             result = err == nil ? tr("Trash dikosongkan.", "Trash emptied.") : tr("Gagal. Izinkan Lega mengontrol Finder di System Settings, Privacy & Security, Automation.", "Failed. Allow Lega to control Finder in System Settings, Privacy & Security, Automation.")
             Engine.log("lanjutan: kosongkan trash")
+            if err == nil { adv["trash"] = 0 }
             refresh()
         }
     }
@@ -607,7 +646,7 @@ extension Model {
                              message: tr("Akan diunduh ulang saat playwright install dijalankan. Penghapusan ini permanen.", "They download again when playwright install runs. This deletion is permanent."))
             })
         }
-        a.append(AdvItem(id: "trash", symbol: "trash", initials: "TR", title: "Trash", size: nil,
+        a.append(AdvItem(id: "trash", symbol: "trash", initials: "TR", title: "Trash", size: (adv["trash"] ?? -1) >= 0 ? adv["trash"] : nil,
                          note: tr("File di Trash baru membebaskan ruang setelah dikosongkan.", "Files in the Trash only free space once it is emptied."),
                          short: tr("Kosongkan lewat Finder", "Emptied through Finder"), button: tr("Kosongkan", "Empty")) { [self] in emptyTrash() })
         return a
@@ -828,27 +867,34 @@ struct MainView: View {
     /// Tampilan satu halaman: lebar tetap, tinggi jendela mengikuti isi sampai setinggi layar.
     var classic: some View {
         let maxH = (NSScreen.main?.visibleFrame.height ?? 900) - 60
-        return ScrollView {
+        return ScrollViewReader { proxy in ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 LegaMark(size: 34)
                 hero
+                if m.isCritical { CriticalCard { withAnimation { proxy.scrollTo("ruang", anchor: .top) } } }
+                if m.scanningSpace { MeasuringCard() }
+                if !m.leftovers.isEmpty { LeftoverOffer() }
                 if m.suggestRestart { RestartCard() }
                 if let r = m.result { resultBanner(r) }
                 quickSection
                 advancedSection
+                leftoversSection
                 downloadsSection
                 appsSection
+                spaceSection.id("ruang")
             }
             .padding(28)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(GeometryReader { g in Color.clear.preference(key: HeightKey.self, value: g.size.height) })
             .animation(.spring(response: 0.4), value: m.result)
             .animation(.spring(response: 0.4), value: m.suggestRestart)
+            .animation(.spring(response: 0.4), value: m.scanningSpace)
         }
         .scrollBounceBehavior(.basedOnSize)
         .onPreferenceChange(HeightKey.self) { classicH = $0 }
         .frame(width: 760, height: min(max(classicH, 320), maxH))
         .background(Color(nsColor: .windowBackgroundColor))
+        }
     }
 
     var hero: some View {
@@ -981,6 +1027,20 @@ struct MainView: View {
         .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
     }
 
+    var leftoversSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionTitle(text: tr("Sisa aplikasi yang sudah dihapus", "Leftovers from removed apps"))
+            SpaceList(leftovers: true)
+        }
+    }
+
+    var spaceSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionTitle(text: tr("Peta ruang", "Space map"))
+            SpaceList()
+        }
+    }
+
     var appsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionTitle(text: tr("Aplikasi terbesar", "Largest apps"))
@@ -1051,7 +1111,7 @@ struct DownloadRow: View {
 
 // MARK: - Tampilan sidebar
 
-enum Pane: Hashable { case cepat, lanjutan, downloads, aplikasi, log, pengaturan }
+enum Pane: Hashable { case cepat, lanjutan, downloads, aplikasi, ruang, sisa, log, pengaturan }
 
 struct SidebarLayout: View {
     @EnvironmentObject var m: Model
@@ -1065,6 +1125,8 @@ struct SidebarLayout: View {
                 Label(tr("Lanjutan", "Advanced"), systemImage: "slider.horizontal.3").badge(m.advItems.count).tag(Pane.lanjutan)
                 Label("Downloads", systemImage: "arrow.down.circle").badge(m.downloads.count).tag(Pane.downloads)
                 Label("Applications", systemImage: "square.grid.3x3").badge(m.apps.count).tag(Pane.aplikasi)
+                Label(tr("Sisa aplikasi", "Leftovers"), systemImage: "shippingbox").badge(m.leftovers.count).tag(Pane.sisa)
+                Label(tr("Peta ruang", "Space map"), systemImage: "chart.bar.xaxis").tag(Pane.ruang)
                 Label("Log", systemImage: "list.bullet.rectangle").tag(Pane.log)
                 Section {
                     Label(tr("Pengaturan", "Settings"), systemImage: "gearshape").tag(Pane.pengaturan)
@@ -1078,6 +1140,8 @@ struct SidebarLayout: View {
                 case .lanjutan: AdvancedPane()
                 case .downloads: DownloadsPane()
                 case .aplikasi: DownloadsPane(apps: true)
+                case .ruang: SpacePane()
+                case .sisa: SpacePane(leftovers: true)
                 case .log: LogPane()
                 case .pengaturan: ScrollView { SettingsView(embedded: true).padding(8) }
                 }
@@ -1094,6 +1158,8 @@ struct SidebarLayout: View {
         case .lanjutan: tr("Opsi lanjutan", "Advanced options")
         case .downloads: "Downloads"
         case .aplikasi: "Applications"
+        case .ruang: tr("Peta ruang", "Space map")
+        case .sisa: tr("Sisa aplikasi yang sudah dihapus", "Leftovers from removed apps")
         case .log: "Log"
         case .pengaturan: tr("Pengaturan", "Settings")
         }
@@ -1173,6 +1239,9 @@ struct QuickPane: View {
                 .background(RoundedRectangle(cornerRadius: 16).fill(Color(nsColor: .controlBackgroundColor)))
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.08)))
 
+                if m.isCritical { CriticalCard { m.pane = .ruang } }
+                if m.scanningSpace { MeasuringCard() }
+                if !m.leftovers.isEmpty { LeftoverOffer() }
                 if m.suggestRestart { RestartCard() }
                 if let r = m.result { ResultChip(text: r).transition(.scale(scale: 0.96).combined(with: .opacity)) }
                 if m.scanning { ScanChip(text: tr("Memindai cache", "Scanning caches")).transition(.opacity) }
@@ -1206,6 +1275,7 @@ struct QuickPane: View {
             .padding(24)
             .animation(.spring(response: 0.4), value: m.result)
             .animation(.spring(response: 0.4), value: m.scanning)
+            .animation(.spring(response: 0.4), value: m.scanningSpace)
         }
     }
 }
@@ -1455,6 +1525,7 @@ struct SettingsView: View {
     @AppStorage("viewMode") private var viewMode = "sidebar"
     @AppStorage("appearance") private var appearance = "sistem"
     @AppStorage("language") private var language = "en"
+    @AppStorage("accessAsked") private var accessAsked = false
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
 
@@ -1519,6 +1590,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct LegaApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject var m = Model()
+    @AppStorage("accessAsked") private var accessAsked = false
     @AppStorage("showMenuBar") private var showMenuBar = true
     @AppStorage("didSetupLogin") private var didSetupLogin = false
     @AppStorage("appearance") private var appearance = "sistem"
@@ -1536,6 +1608,9 @@ struct LegaApp: App {
         Window("Lega", id: "main") {
             MainView().environmentObject(m)
                 .id(language)   // bangun ulang semua teks saat bahasa diganti
+                .sheet(isPresented: Binding(get: { !accessAsked && !Access.hasFullDisk && !m.demo }, set: { if !$0 { accessAsked = true } })) {
+                    AccessSheet().environmentObject(m)
+                }
                 .preferredColorScheme(scheme(appearance))
                 .onAppear { NSApp.setActivationPolicy(.regular); NSApp.activate(ignoringOtherApps: true) }
         }
@@ -1547,7 +1622,7 @@ struct LegaApp: App {
         MenuBarExtra(isInserted: $showMenuBar) {
             MenuBarPanel().environmentObject(m).id(language).preferredColorScheme(scheme(appearance))
         } label: {
-            Image(systemName: m.busy ? "sparkles.rectangle.stack" : "sparkles")
+            Image(systemName: m.busy ? "sparkles.rectangle.stack" : m.scanningSpace ? "magnifyingglass" : "sparkles")
         }
         .menuBarExtraStyle(.window)
     }

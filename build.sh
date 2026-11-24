@@ -15,7 +15,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 for arch in arm64 x86_64; do
   swiftc -O -parse-as-library -swift-version 5 -target "$arch-apple-macos$MIN" \
-    Sources/main.swift -o "build/Lega-$arch"
+    Sources/*.swift -o "build/Lega-$arch"
 done
 lipo -create build/Lega-arm64 build/Lega-x86_64 -output "$BIN"
 rm build/Lega-arm64 build/Lega-x86_64
@@ -44,7 +44,10 @@ cat > "$APP/Contents/Info.plist" <<EOF
 </plist>
 EOF
 
-codesign --force --sign - "$APP"
+# Tanda tangan tetap bila sertifikat "Lega Developer" ada (lihat Scripts/make-cert.sh), supaya izin macOS
+# tidak ditanyakan ulang tiap build. Tanpa sertifikat itu, kembali ke ad-hoc.
+SIGN_ID=$(security find-identity -p codesigning 2>/dev/null | awk '/"Lega Developer"/ {print $2; exit}')
+codesign --force --sign "${SIGN_ID:--}" "$APP"
 echo "Build: $APP ($(lipo -archs "$BIN"))"
 
 if [ "${1:-}" != "--no-install" ]; then
