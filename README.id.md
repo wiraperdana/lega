@@ -10,8 +10,8 @@ Produk open source dari [InnovationKit](https://wiraperdana.com), dirilis dengan
 
 Unduh DMG dari [lega.wiraperdana.com](https://lega.wiraperdana.com/#download):
 
-- [Lega untuk Apple Silicon](https://lega.wiraperdana.com/download/Lega-1.0.0-AppleSilicon.dmg) (M1 dan seterusnya)
-- [Lega untuk Intel](https://lega.wiraperdana.com/download/Lega-1.0.0-Intel.dmg)
+- [Lega untuk Apple Silicon](https://lega.wiraperdana.com/download/Lega-1.1.0-AppleSilicon.dmg) (M1 dan seterusnya)
+- [Lega untuk Intel](https://lega.wiraperdana.com/download/Lega-1.1.0-Intel.dmg)
 
 Buka DMG, lalu seret Lega ke Applications. Lega belum ditandatangani Developer ID Apple, jadi macOS menahannya saat pertama dibuka. Buka System Settings, Privacy & Security, lalu klik Open Anyway. Cukup sekali.
 
@@ -30,6 +30,7 @@ Buka DMG, lalu seret Lega ke Applications. Lega belum ditandatangani Developer I
 - **English dan Bahasa Indonesia**, dengan mode terang, gelap, atau ikuti sistem.
 - **Menu bar.** Lihat ruang kosong dan bersihkan cache tanpa membuka jendela.
 - **Berjalan saat Mac menyala.** Bisa dimatikan di Pengaturan.
+- **Versi dan pembaruan.** Pengaturan menampilkan versi saat ini. Lega mengecek lega.wiraperdana.com sekali sehari untuk versi baru dan menawarkan DMG yang cocok untuk Mac Anda. Bisa dimatikan.
 - **Tercatat.** Setiap pembersihan ditulis ke `~/Library/Logs/Lega.log`.
 
 ## Prinsip keamanan

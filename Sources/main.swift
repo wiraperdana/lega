@@ -344,6 +344,7 @@ final class Model: ObservableObject {
             UserDefaults.standard.removeObject(forKey: "autoScanOnce")
             Task { @MainActor in try? await Task.sleep(for: .seconds(1)); self.startScan() }
         }
+        Task { @MainActor in Updater.shared.autoCheck() }
         // Pindai ulang tiap 30 menit supaya angka di menu bar tetap segar
         Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
@@ -1065,6 +1066,7 @@ struct SettingsView: View {
             if let e = loginError { Text(e).font(.caption).foregroundStyle(.red) }
             Text(tr("Kalau keduanya aktif, Lega berjalan diam-diam di menu bar setiap Mac menyala.", "With both on, Lega runs quietly in the menu bar every time your Mac starts."))
                 .font(.caption).foregroundStyle(.secondary)
+            UpdateSettings()
         }
         .formStyle(.grouped)
         .scrollDisabled(true)

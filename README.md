@@ -10,8 +10,8 @@ An open-source product from [InnovationKit](https://wiraperdana.com), released u
 
 Get the DMG from [lega.wiraperdana.com](https://lega.wiraperdana.com/#download):
 
-- [Lega for Apple Silicon](https://lega.wiraperdana.com/download/Lega-1.0.0-AppleSilicon.dmg) (M1 and later)
-- [Lega for Intel](https://lega.wiraperdana.com/download/Lega-1.0.0-Intel.dmg)
+- [Lega for Apple Silicon](https://lega.wiraperdana.com/download/Lega-1.1.0-AppleSilicon.dmg) (M1 and later)
+- [Lega for Intel](https://lega.wiraperdana.com/download/Lega-1.1.0-Intel.dmg)
 
 Open the DMG and drag Lega to Applications. Lega is not yet signed with an Apple Developer ID, so macOS blocks it the first time. Open System Settings, Privacy & Security, then click Open Anyway. You only need to do this once.
 
@@ -30,6 +30,7 @@ Open the DMG and drag Lega to Applications. Lega is not yet signed with an Apple
 - **English and Bahasa Indonesia**, with light, dark, or system appearance.
 - **Menu bar.** See free space and clean caches without opening a window.
 - **Runs at login.** Can be turned off in Settings.
+- **Version and updates.** Settings shows the current version. Lega checks lega.wiraperdana.com once a day for a newer version and offers the right DMG for your Mac. You can turn this off.
 - **Logged.** Every clean is written to `~/Library/Logs/Lega.log`.
 
 ## Safety principles

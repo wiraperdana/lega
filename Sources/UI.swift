@@ -368,6 +368,8 @@ struct HomeView: View {
             }
             if m.suggestRestart { restartLine }
             if let r = m.result { ResultChip(text: r) }
+            UpdateBanner()
+            Text("Lega \(appVersion)").font(.caption).foregroundStyle(.tertiary)
         }
         .transition(.opacity)
     }
